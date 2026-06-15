@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sky-50: #f0f9ff;
+  --color-sky-100: #e0f2fe;
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #0d9488;
+  --color-mint-100: #d1fae5;
+  --color-mint-500: #10b981;
+}
+
+body {
+  @apply bg-sky-50 text-slate-800 antialiased;
+}
