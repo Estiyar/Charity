@@ -3,22 +3,18 @@ import { Link, useParams } from 'react-router-dom'
 import {
   approveCard,
   fetchModerationCard,
-  fetchRedistributions,
   rejectCard,
   rejectDocument,
   requestCardRevision,
   verifyDocument,
   mediaUrl,
 } from '../../api/client'
-import RedistributionForm from '../../components/RedistributionForm'
-import RedistributionHistory from '../../components/RedistributionHistory'
 import EscrowBlock from '../../components/EscrowBlock'
 import { formatDate, formatMoney, statusLabel } from '../../utils/format'
 
 export default function ModeratorReview() {
   const { id } = useParams()
   const [card, setCard] = useState(null)
-  const [redistribution, setRedistribution] = useState(null)
   const [comment, setComment] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -26,14 +22,13 @@ export default function ModeratorReview() {
 
   function loadCard() {
     fetchModerationCard(id).then(setCard).catch(() => setCard(null))
-    fetchRedistributions(id).then(setRedistribution).catch(() => setRedistribution(null))
   }
 
   useEffect(() => {
     loadCard()
   }, [id])
 
-  const canRedistribute = card && ['active', 'completed', 'deceased', 'redistribution'].includes(card.status)
+  const showEscrow = card && ['active', 'completed', 'deceased', 'redistribution'].includes(card.status)
 
   async function runAction(action) {
     setError('')
@@ -160,14 +155,8 @@ export default function ModeratorReview() {
         </div>
       </section>
 
-      {canRedistribute && card.escrow_balance !== undefined && (
+      {showEscrow && card.escrow_balance !== undefined && (
         <EscrowBlock card={card} />
-      )}
-
-      {redistribution && <RedistributionHistory data={redistribution} />}
-
-      {canRedistribute && (
-        <RedistributionForm cardId={id} onSuccess={loadCard} />
       )}
 
       {card.moderation_logs?.length > 0 && (

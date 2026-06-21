@@ -86,12 +86,12 @@ class Command(BaseCommand):
             help="Очистить данные антифрода перед загрузкой",
         )
 
-    @transaction.atomic
+    @transaction.atomic(using="antifraud")
     def handle(self, *args, **options):
         if options["clear"]:
-            FraudProfile.objects.all().delete()
+            FraudProfile.objects.using("antifraud").all().delete()
 
-        if FraudProfile.objects.exists():
+        if FraudProfile.objects.using("antifraud").exists():
             self.stdout.write(self.style.WARNING("Данные антифрода уже загружены. Используйте --clear."))
             return
 

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchExpenses, fetchMyCards, submitCard } from '../../api/client'
-import { clearToken } from '../../api/auth'
 import EscrowBlock from '../../components/EscrowBlock'
 import ExpenseForm from '../../components/ExpenseForm'
 import ExpenseHistory from '../../components/ExpenseHistory'
@@ -65,7 +64,7 @@ function CardArticle({ card, onSubmit }) {
   )
 }
 
-export default function AuthorDashboard() {
+export default function AuthorFundraisers() {
   const [cards, setCards] = useState([])
   const [expensesByCard, setExpensesByCard] = useState({})
   const [loading, setLoading] = useState(true)
@@ -121,102 +120,77 @@ export default function AuthorDashboard() {
     loadCards()
   }
 
-  return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">Личный кабинет автора</h1>
-          <p className="text-slate-600">Мои сборы, расходы и профиль</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to="/author/create"
-            className="rounded-2xl bg-teal-500 px-4 py-2 text-sm font-semibold text-white"
-          >
-            Создать сбор
-          </Link>
-          <Link
-            to="/author/profile"
-            className="rounded-2xl border border-sky-200 px-4 py-2 text-sm text-slate-600"
-          >
-            Профиль
-          </Link>
-          <button
-            type="button"
-            onClick={() => {
-              clearToken()
-              window.location.href = '/login'
-            }}
-            className="rounded-2xl border border-sky-200 px-4 py-2 text-sm text-slate-600"
-          >
-            Выйти
-          </button>
-        </div>
+  if (error) {
+    return <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-md">
+        Загрузка...
       </div>
+    )
+  }
 
-      {error && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
+  if (!cards.length) {
+    return (
+      <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-md">
+        <p>У вас пока нет карточек.</p>
+        <Link to="/author/create" className="mt-4 inline-block text-teal-600 hover:underline">
+          Создать первый сбор
+        </Link>
+      </div>
+    )
+  }
 
-      {loading ? (
-        <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-md">
-          Загрузка...
-        </div>
-      ) : !cards.length ? (
-        <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-md">
-          <p>У вас пока нет карточек.</p>
-          <Link to="/author/create" className="mt-4 inline-block text-teal-600 hover:underline">
-            Создать первый сбор
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {pendingModerationCards.length > 0 && (
-            <section className="space-y-4">
-              <SectionTitle>Заявки на модерации</SectionTitle>
-              <div className="space-y-4">
-                {pendingModerationCards.map((card) => (
-                  <CardArticle key={card.id} card={card} onSubmit={handleSubmit} />
-                ))}
+  return (
+    <div className="space-y-8">
+      {pendingModerationCards.length > 0 && (
+        <section className="space-y-4">
+          <SectionTitle>Заявки на модерации</SectionTitle>
+          <div className="space-y-4">
+            {pendingModerationCards.map((card) => (
+              <CardArticle key={card.id} card={card} onSubmit={handleSubmit} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {revisionRequiredCards.length > 0 && (
+        <section className="space-y-4">
+          <SectionTitle>Требуют доработки</SectionTitle>
+          <div className="space-y-4">
+            {revisionRequiredCards.map((card) => (
+              <CardArticle key={card.id} card={card} onSubmit={handleSubmit} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {myCards.length > 0 && (
+        <section className="space-y-4">
+          <SectionTitle>Мои сборы</SectionTitle>
+          <div className="space-y-4">
+            {myCards.map((card) => (
+              <CardArticle key={card.id} card={card} onSubmit={handleSubmit} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {expenseCards.length > 0 && (
+        <section className="space-y-6">
+          <SectionTitle>История расходов</SectionTitle>
+          {expenseCards.map((card) => (
+            <div key={`exp-${card.id}`} className="space-y-4">
+              <EscrowBlock card={card} />
+              <div className="grid gap-6 lg:grid-cols-2">
+                <ExpenseForm cardId={card.id} onSuccess={() => refreshCard(card.id)} />
+                <ExpenseHistory expenses={expensesByCard[card.id] || []} />
               </div>
-            </section>
-          )}
-
-          {revisionRequiredCards.length > 0 && (
-            <section className="space-y-4">
-              <SectionTitle>Требуют доработки</SectionTitle>
-              <div className="space-y-4">
-                {revisionRequiredCards.map((card) => (
-                  <CardArticle key={card.id} card={card} onSubmit={handleSubmit} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {myCards.length > 0 && (
-            <section className="space-y-4">
-              <SectionTitle>Мои сборы</SectionTitle>
-              <div className="space-y-4">
-                {myCards.map((card) => (
-                  <CardArticle key={card.id} card={card} onSubmit={handleSubmit} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {expenseCards.length > 0 && (
-            <section className="space-y-6">
-              <SectionTitle>История расходов</SectionTitle>
-              {expenseCards.map((card) => (
-                <div key={`exp-${card.id}`} className="space-y-4">
-                  <EscrowBlock card={card} />
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <ExpenseForm cardId={card.id} onSuccess={() => refreshCard(card.id)} />
-                    <ExpenseHistory expenses={expensesByCard[card.id] || []} />
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
-        </div>
+            </div>
+          ))}
+        </section>
       )}
     </div>
   )

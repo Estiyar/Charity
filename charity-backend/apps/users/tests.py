@@ -9,6 +9,7 @@ from .permissions import IsAdmin, IsAuthor, IsDonor, IsModerator
 
 
 class RegisterAPITestCase(APITestCase):
+    databases = {"default", "medregistry", "antifraud"}
     url = "/api/auth/register"
 
     def _payload(self, **overrides):

@@ -1,4 +1,4 @@
-# Charity Platform — Frontend (React + Tailwind)
+# е-Көмек — Frontend (React + Tailwind)
 
 Публичная часть платформы: главная, каталог, карточка сбора и демо-пожертвование.
 

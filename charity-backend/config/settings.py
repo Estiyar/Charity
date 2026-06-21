@@ -61,6 +61,24 @@ TEMPLATES = [{
 }]
 WSGI_APPLICATION = "config.wsgi.application"
 
+
+def _postgres_database(name_env, name_default, prefix):
+    def pick(suffix, default_key, fallback):
+        value = os.environ.get(f"{prefix}_DB_{suffix}")
+        if value:
+            return value
+        return os.environ.get(default_key, fallback)
+
+    return {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get(name_env, name_default),
+        "USER": pick("USER", "DB_USER", "postgres"),
+        "PASSWORD": pick("PASSWORD", "DB_PASSWORD", "postgres"),
+        "HOST": pick("HOST", "DB_HOST", "localhost"),
+        "PORT": pick("PORT", "DB_PORT", "5432"),
+    }
+
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -69,8 +87,16 @@ DATABASES = {
         "PASSWORD": os.environ.get("DB_PASSWORD", "postgres"),
         "HOST": os.environ.get("DB_HOST", "localhost"),
         "PORT": os.environ.get("DB_PORT", "5432"),
-    }
+    },
+    "medregistry": _postgres_database(
+        "MEDREGISTRY_DB_NAME", "medregistry_db", "MEDREGISTRY"
+    ),
+    "antifraud": _postgres_database(
+        "ANTIFRAUD_DB_NAME", "antifraud_db", "ANTIFRAUD"
+    ),
 }
+
+DATABASE_ROUTERS = ["config.db_router.CharityDatabaseRouter"]
 
 AUTH_USER_MODEL = "users.User"
 

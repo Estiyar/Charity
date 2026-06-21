@@ -3,8 +3,10 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Footer from './components/Footer'
 import Header from './components/Header'
 import CreateCard from './pages/author/CreateCard'
-import AuthorDashboard from './pages/author/AuthorDashboard'
+import AuthorFundraisers from './pages/author/AuthorFundraisers'
+import AuthorLayout from './pages/author/AuthorLayout'
 import AuthorProfile from './pages/author/AuthorProfile'
+import DonorCabinetPanel from './components/DonorCabinetPanel'
 import CardDetail from './pages/CardDetail'
 import Catalog from './pages/Catalog'
 import Home from './pages/Home'
@@ -21,7 +23,6 @@ import AdminReferences from './pages/admin/AdminReferences'
 import AdminSettings from './pages/admin/AdminSettings'
 import AdminUsers from './pages/admin/AdminUsers'
 import ModeratorExpenseReview from './pages/moderator/ModeratorExpenseReview'
-import ModeratorRedistribution from './pages/moderator/ModeratorRedistribution'
 import ModeratorReview from './pages/moderator/ModeratorReview'
 import DonorDashboard from './pages/donor/DonorDashboard'
 
@@ -40,10 +41,13 @@ export default function App() {
             path="/author"
             element={(
               <ProtectedRoute role="author">
-                <AuthorDashboard />
+                <AuthorLayout />
               </ProtectedRoute>
             )}
-          />
+          >
+            <Route index element={<AuthorFundraisers />} />
+            <Route path="donor" element={<DonorCabinetPanel showProfile={false} />} />
+          </Route>
           <Route
             path="/author/create"
             element={(
@@ -106,7 +110,6 @@ export default function App() {
               element={<ModeratorList expensesMode title="Расходы на проверке" />}
             />
             <Route path="expenses/:id" element={<ModeratorExpenseReview />} />
-            <Route path="redistribution" element={<ModeratorRedistribution />} />
             <Route path="cards/:id" element={<ModeratorReview />} />
           </Route>
         </Routes>

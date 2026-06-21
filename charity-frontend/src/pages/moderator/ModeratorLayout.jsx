@@ -8,7 +8,6 @@ const sections = [
   { to: '/moderator/rejected', label: 'Отклонённые', status: 'rejected' },
   { to: '/moderator/documents', label: 'Документы на проверке' },
   { to: '/moderator/expenses', label: 'Расходы на проверке' },
-  { to: '/moderator/redistribution', label: 'Перераспределение' },
 ]
 
 export { sections }

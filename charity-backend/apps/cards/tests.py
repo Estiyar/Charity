@@ -23,6 +23,8 @@ User = get_user_model()
 
 
 class CardAPITestCase(APITestCase):
+    databases = {"default", "medregistry", "antifraud"}
+
     def setUp(self):
         seed_fundraiser_iin_fixtures()
         self.author = User.objects.create_user(

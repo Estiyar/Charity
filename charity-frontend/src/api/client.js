@@ -78,6 +78,18 @@ export function fetchMe() {
   return request('/auth/me')
 }
 
+export function fetchMyBalance() {
+  return request('/auth/balance/')
+}
+
+export function withdrawBalance(amount) {
+  const body = amount ? JSON.stringify({ amount }) : JSON.stringify({})
+  return request('/auth/balance/withdraw/', {
+    method: 'POST',
+    body,
+  })
+}
+
 export function fetchMedicalRecord(iin) {
   return request(`/medregistry/${iin}/`)
 }
@@ -131,6 +143,21 @@ export function fetchDonations(cardId) {
 
 export function fetchMyDonations() {
   return request('/donations/my/')
+}
+
+export function fetchMyPendingRefunds() {
+  return request('/refunds/my/')
+}
+
+export function fetchMyRefundHistory() {
+  return request('/refunds/history/')
+}
+
+export function chooseRefundDecision(decisionId, payload) {
+  return request(`/refunds/${decisionId}/choose/`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function donate(cardId, payload) {
@@ -222,21 +249,6 @@ export function requestExpenseClarification(id, comment) {
     method: 'POST',
     body: JSON.stringify({ comment }),
   })
-}
-
-export function fetchRedistributions(cardId) {
-  return request(`/cards/${cardId}/redistribution/`)
-}
-
-export function createRedistribution(cardId, payload) {
-  return request(`/cards/${cardId}/redistribution/`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-}
-
-export function fetchRedistributionCards() {
-  return request('/moderation/redistribution/')
 }
 
 export function fetchAdminUsers() {

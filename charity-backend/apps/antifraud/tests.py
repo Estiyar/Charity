@@ -8,6 +8,8 @@ User = get_user_model()
 
 
 class AntifraudAPITestCase(APITestCase):
+    databases = {"default", "medregistry", "antifraud"}
+
     def setUp(self):
         self.author = User.objects.create_user(
             email="author@example.com",

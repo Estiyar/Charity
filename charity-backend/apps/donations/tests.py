@@ -152,6 +152,61 @@ class DonationAPITestCase(APITestCase):
         self.assertEqual(response.data[0]["amount"], "5000.00")
         self.assertEqual(response.data[0]["card_name"], self.active_card.full_name)
 
+    def test_author_cannot_donate_to_own_fundraiser(self):
+        self.author.iin = "850315301234"
+        self.author.save(update_fields=["iin"])
+        self.active_card.recipient_iin = "850315301234"
+        self.active_card.save(update_fields=["recipient_iin"])
+        self.client.force_authenticate(user=self.author)
+        response = self.client.post(
+            f"/api/cards/{self.active_card.id}/donate/",
+            self.donate_payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Нельзя жертвовать в собственный сбор.",
+            response.data.get("non_field_errors", []),
+        )
+
+    def test_author_can_donate_to_other_fundraiser(self):
+        other_author = User.objects.create_user(
+            email="other-author@example.com",
+            password="securepass123",
+            full_name="Другой автор",
+            role="author",
+            iin="930615402341",
+        )
+        other_card = FundraisingCard.objects.create(
+            author=other_author,
+            full_name="Чужой сбор",
+            diagnosis="ДЦП",
+            city="Астана",
+            recipient_iin="990101300999",
+            target_amount=Decimal("200000.00"),
+            collected_amount=Decimal("0.00"),
+            end_date=date.today() + timedelta(days=60),
+            status=CardStatus.ACTIVE,
+        )
+        self.client.force_authenticate(user=self.author)
+        response = self.client.post(
+            f"/api/cards/{other_card.id}/donate/",
+            self.donate_payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        other_card.refresh_from_db()
+        self.assertEqual(other_card.collected_amount, Decimal("5000.00"))
+
+    def test_card_detail_marks_own_fundraiser_not_donatable(self):
+        self.client.force_authenticate(user=self.author)
+        response = self.client.get(f"/api/cards/{self.active_card.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["can_donate"])
+
 
 class PlatformStatsAPITestCase(APITestCase):
     def test_stats_endpoint(self):

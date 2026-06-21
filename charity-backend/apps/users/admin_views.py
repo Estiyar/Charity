@@ -76,6 +76,9 @@ class AdminCardStatusView(APIView):
             transition(card, serializer.validated_data["status"])
         except InvalidStatusTransition as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.donations.services import handle_card_status_change
+
+        handle_card_status_change(card, card.status)
         return Response(AdminCardSerializer(card).data)
 
 
@@ -97,6 +100,9 @@ class AdminCardSetStatusView(APIView):
                 "admin_set_status",
                 f"{old_status} -> {new_status}",
             )
+            from apps.donations.services import handle_card_status_change
+
+            handle_card_status_change(card, new_status)
         return Response(AdminCardSerializer(card).data)
 
 

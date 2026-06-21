@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.common.card_status import CardStatus
 from apps.common.validators import validate_iin, validate_upload
+from apps.donations.services import is_own_fundraiser
 
 from .models import FundraisingCard, Gender
 from .services import FundraiserCreationError, prepare_fundraiser_data
@@ -15,6 +16,13 @@ class CardPublicSerializer(serializers.ModelSerializer):
     escrow_pending = serializers.ReadOnlyField()
     escrow_available = serializers.ReadOnlyField()
     escrow_balance = serializers.ReadOnlyField()
+    can_donate = serializers.SerializerMethodField()
+
+    def get_can_donate(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return True
+        return not is_own_fundraiser(request.user, obj)
 
     class Meta:
         model = FundraisingCard
@@ -41,6 +49,7 @@ class CardPublicSerializer(serializers.ModelSerializer):
             "escrow_pending",
             "escrow_available",
             "escrow_balance",
+            "can_donate",
             "created_at",
             "updated_at",
         )
@@ -61,6 +70,13 @@ class CardPrivateSerializer(serializers.ModelSerializer):
     escrow_pending = serializers.ReadOnlyField()
     escrow_available = serializers.ReadOnlyField()
     escrow_balance = serializers.ReadOnlyField()
+    can_donate = serializers.SerializerMethodField()
+
+    def get_can_donate(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return True
+        return not is_own_fundraiser(request.user, obj)
 
     class Meta:
         model = FundraisingCard
@@ -93,6 +109,7 @@ class CardPrivateSerializer(serializers.ModelSerializer):
             "escrow_pending",
             "escrow_available",
             "escrow_balance",
+            "can_donate",
             "created_at",
             "updated_at",
         )

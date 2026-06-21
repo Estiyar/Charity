@@ -7,7 +7,6 @@ from .views import (
     ModerationCardDetailView,
     ModerationCardListView,
     ModerationDocumentListView,
-    ModerationRedistributionCardListView,
     ModerationRejectView,
     ModerationRequestRevisionView,
 )
@@ -24,9 +23,4 @@ urlpatterns = [
     ),
     path("documents/", ModerationDocumentListView.as_view(), name="moderation-document-list"),
     path("expenses/", ModerationExpenseListView.as_view(), name="moderation-expense-list"),
-    path(
-        "redistribution/",
-        ModerationRedistributionCardListView.as_view(),
-        name="moderation-redistribution-cards",
-    ),
 ]

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createExpense } from '../api/client'
+import FileUploadField from './FileUploadField'
 
 const initialForm = {
   date: '',
@@ -85,12 +86,18 @@ export default function ExpenseForm({ cardId, onSuccess }) {
         rows={3}
         className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
       />
-      <input
-        type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="w-full text-sm text-slate-600"
-      />
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-slate-700">
+          Подтверждающий документ (PDF, JPG, PNG)
+        </label>
+        <FileUploadField
+          id={`expense-file-${cardId}`}
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          label="Выбрать файл"
+          files={file}
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+      </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {success && <p className="rounded-2xl bg-mint-100 px-4 py-3 text-sm text-teal-700">{success}</p>}
       <button

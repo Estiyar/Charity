@@ -184,13 +184,13 @@
 - [x] роли модератор/админ нельзя выбрать при регистрации — 🟢 Фаза 1
 
 ## Раздел 26. База данных (все таблицы и поля)
-- [ ] Users (все поля) — 🟢 Фаза 0
-- [ ] FundraisingCards (все поля, включая iin_masked + iin_encrypted_or_hidden) — 🟢 Фаза 0
-- [ ] Documents — 🟢 Фаза 0
-- [ ] Donations — 🟢 Фаза 0
-- [ ] Expenses — 🟢 Фаза 0
-- [ ] ModerationLogs — 🟢 Фаза 0
-- [ ] RedistributionDecisions — 🟢 Фаза 0
+- [x] Users (все поля) — 🟢 Фаза 0
+- [x] FundraisingCards (все поля, включая iin_masked + iin_encrypted_or_hidden) — 🟢 Фаза 0
+- [x] Documents — 🟢 Фаза 0
+- [x] Donations — 🟢 Фаза 0
+- [x] Expenses — 🟢 Фаза 0
+- [x] ModerationLogs — 🟢 Фаза 0
+- [x] RedistributionDecisions — 🟢 Фаза 0
 
 ## Раздел 27. API (все эндпоинты)
 - [x] Auth: register/login/logout/me — 🟢 Фаза 1

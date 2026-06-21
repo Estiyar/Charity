@@ -1,4 +1,5 @@
 import { Link, NavLink } from 'react-router-dom'
+import logo from '../assets/logo.svg'
 import { getCreateCollectionPath, useCurrentUser } from '../hooks/useCurrentUser'
 
 const linkClass = ({ isActive }) =>
@@ -38,12 +39,17 @@ export default function Header() {
       <div className="mx-auto max-w-7xl px-4 py-4">
         <div className="flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-sky-400 text-lg font-bold text-white shadow-md">
-              C
-            </div>
+            <img
+              src={logo}
+              alt=""
+              width={40}
+              height={40}
+              className="h-10 w-10 shrink-0"
+              aria-hidden="true"
+            />
             <div>
-              <p className="text-lg font-semibold text-slate-800">Charity Platform</p>
-              <p className="text-xs text-slate-500">Проверенная помощь</p>
+              <p className="text-lg font-semibold text-slate-800">е-Көмек</p>
+              <p className="text-xs text-slate-500">Сенімді көмек</p>
             </div>
           </Link>
           <div className="flex gap-2">

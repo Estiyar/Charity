@@ -128,13 +128,13 @@ class Command(BaseCommand):
             help="Очистить данные медреестра перед загрузкой",
         )
 
-    @transaction.atomic
+    @transaction.atomic(using="medregistry")
     def handle(self, *args, **options):
         if options["clear"]:
-            MedicalDiagnosis.objects.all().delete()
-            MedicalRecord.objects.all().delete()
+            MedicalDiagnosis.objects.using("medregistry").all().delete()
+            MedicalRecord.objects.using("medregistry").all().delete()
 
-        if MedicalRecord.objects.exists():
+        if MedicalRecord.objects.using("medregistry").exists():
             self.stdout.write(self.style.WARNING("Данные медреестра уже загружены. Используйте --clear."))
             return
 

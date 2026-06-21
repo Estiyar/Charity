@@ -128,5 +128,7 @@ class PlatformSettingsSerializer(serializers.ModelSerializer):
             "pdf_auto_check_stub",
             "notifications_stub",
             "egov_integration_stub",
+            "refund_commission_percent",
+            "refund_deadline_days",
             "updated_at",
         )

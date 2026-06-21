@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { fetchCard, fetchDonations, fetchExpenses, fetchRedistributions, mediaUrl } from '../api/client'
+import { fetchCard, fetchDonations, fetchExpenses, mediaUrl } from '../api/client'
 import ApprovedExpensesTable from '../components/ApprovedExpensesTable'
-import RedistributionHistory from '../components/RedistributionHistory'
 import DonationForm from '../components/DonationForm'
 import EscrowBlock from '../components/EscrowBlock'
 import ProgressBar from '../components/ProgressBar'
 import { formatDate, formatMoney, statusLabel } from '../utils/format'
+
+const OWN_FUNDRAISER_DONATION_MESSAGE = 'Нельзя жертвовать в собственный сбор.'
 
 export default function CardDetail() {
   const { id } = useParams()
   const [card, setCard] = useState(null)
   const [donations, setDonations] = useState([])
   const [expenses, setExpenses] = useState([])
-  const [redistribution, setRedistribution] = useState(null)
   const [error, setError] = useState('')
 
   function loadCard() {
@@ -26,7 +26,6 @@ export default function CardDetail() {
     loadCard()
     fetchDonations(id).then(setDonations).catch(() => setDonations([]))
     fetchExpenses(id).then(setExpenses).catch(() => setExpenses([]))
-    fetchRedistributions(id).then(setRedistribution).catch(() => setRedistribution(null))
   }, [id])
 
   if (error) {
@@ -49,6 +48,7 @@ export default function CardDetail() {
   }
 
   const photo = mediaUrl(card.photo_url)
+  const canDonate = card.status === 'active' && card.can_donate !== false
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-10">
@@ -129,11 +129,10 @@ export default function CardDetail() {
           </section>
 
           <ApprovedExpensesTable expenses={expenses} />
-          {redistribution && <RedistributionHistory data={redistribution} />}
         </div>
 
         <div id="donate">
-          {card.status === 'active' ? (
+          {canDonate ? (
             <DonationForm
               cardId={card.id}
               onSuccess={() => {
@@ -141,6 +140,11 @@ export default function CardDetail() {
                 fetchDonations(id).then(setDonations).catch(() => {})
               }}
             />
+          ) : card.status === 'active' && card.can_donate === false ? (
+            <div className="rounded-3xl bg-white p-6 shadow-md">
+              <h3 className="text-xl font-semibold text-slate-800">Сделать пожертвование</h3>
+              <p className="mt-3 text-sm text-slate-600">{OWN_FUNDRAISER_DONATION_MESSAGE}</p>
+            </div>
           ) : (
             <div className="rounded-3xl bg-white p-6 shadow-md">
               <h3 className="text-xl font-semibold text-slate-800">Сделать пожертвование</h3>

@@ -10,7 +10,7 @@ from apps.cards.test_fixtures import AUTHOR_IIN, RECIPIENT_IIN, seed_fundraiser_
 from apps.common.card_status import CardStatus
 from apps.donations.serializers import DONATION_SUCCESS_MESSAGE
 from apps.expenses.models import ExpenseStatus
-from apps.moderation.models import ModerationLog, RedistributionDecision
+from apps.moderation.models import ModerationLog
 from apps.users.models import Role
 
 User = get_user_model()
@@ -141,6 +141,8 @@ class ModerationAPITestCase(APITestCase):
 
 
 class Section30ScenarioAPITestCase(APITestCase):
+    databases = {"default", "medregistry", "antifraud"}
+
     def _login(self, email, password):
         response = self.client.post(
             "/api/auth/login",
@@ -343,51 +345,3 @@ class Section30ScenarioAPITestCase(APITestCase):
         self.assertEqual(len(public_after.data), 1)
         self.assertEqual(public_after.data[0]["id"], expense_id)
         self.assertEqual(public_after.data[0]["status"], ExpenseStatus.APPROVED)
-
-    def test_scenario_5_redistribution(self):
-        author = User.objects.create_user(
-            email="scenario5-author@example.com",
-            password="securepass123",
-            full_name="Автор Сценарий 5",
-            role=Role.AUTHOR,
-        )
-        moderator = User.objects.create_user(
-            email="scenario5-mod@example.com",
-            password="securepass123",
-            full_name="Модератор Сценарий 5",
-            role=Role.MODERATOR,
-        )
-        card = FundraisingCard.objects.create(
-            author=author,
-            full_name="Сбор для перераспределения",
-            diagnosis="ДЦП",
-            city="Астана",
-            target_amount=Decimal("300000.00"),
-            collected_amount=Decimal("80000.00"),
-            end_date=date.today() + timedelta(days=60),
-            status=CardStatus.ACTIVE,
-        )
-
-        self._login("scenario5-mod@example.com", "securepass123")
-        decision_response = self.client.post(
-            f"/api/cards/{card.id}/redistribution/",
-            {"decision_type": "fund", "comment": "Передать в общий фонд"},
-            format="json",
-        )
-        self.assertEqual(decision_response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(decision_response.data["decision_type"], "fund")
-
-        self.assertEqual(RedistributionDecision.objects.filter(card=card).count(), 1)
-        decision = RedistributionDecision.objects.get(card=card)
-        self.assertEqual(decision.decision_type, RedistributionDecision.DecisionType.FUND)
-        self.assertEqual(decision.comment, "Передать в общий фонд")
-
-        card.refresh_from_db()
-        self.assertEqual(card.status, CardStatus.REDISTRIBUTION)
-
-        self.client.credentials()
-        history_response = self.client.get(f"/api/cards/{card.id}/redistribution/")
-        self.assertEqual(history_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(history_response.data["decisions"]), 1)
-        self.assertEqual(history_response.data["decisions"][0]["id"], decision.id)
-        self.assertEqual(history_response.data["decisions"][0]["decision_type"], "fund")

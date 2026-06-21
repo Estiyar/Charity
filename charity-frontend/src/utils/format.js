@@ -12,6 +12,17 @@ export function formatDate(value) {
   return new Date(value).toLocaleDateString('ru-RU')
 }
 
+export function formatDateTime(value) {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 const STATUS_LABELS = {
   active: 'Активен',
   completed: 'Завершён',
@@ -65,24 +76,28 @@ export function expenseStatusLabel(status) {
   return EXPENSE_STATUS_LABELS[status] || status
 }
 
-const REDISTRIBUTION_CASE_LABELS = {
-  deceased: 'Получатель умер',
-  completed_balance: 'Сбор завершён, есть остаток',
-  no_documents: 'Нет подтверждённых документов расходов',
-  unused_funds: 'Неиспользованные средства',
+export function formatRefundOutcome(decision) {
+  if (!decision) return '—'
+  if (decision.status === 'pending') {
+    return `Ожидает решения до ${formatDateTime(decision.deadline)}`
+  }
+  if (decision.choice === 'keep') {
+    if (decision.status === 'expired') {
+      return 'Оставлено семье (срок истёк)'
+    }
+    return 'Оставлено семье получателя'
+  }
+  if (decision.choice === 'refund') {
+    const netAmount = decision.refund_payout?.net_amount
+    return netAmount ? `Возврат на баланс ${formatMoney(netAmount)}` : 'Возврат на баланс'
+  }
+  if (decision.choice === 'redirect' && decision.target_card) {
+    return `Перенаправлено на «${decision.target_card.full_name}»`
+  }
+  return decision.choice_label || '—'
 }
 
-const REDISTRIBUTION_DECISION_LABELS = {
-  refund: 'Вернуть донорам',
-  transfer: 'Перераспределить на другой сбор',
-  fund: 'Передать в общий фонд',
-  hold: 'Оставить до завершения проверки',
-}
-
-export function redistributionCaseLabel(value) {
-  return REDISTRIBUTION_CASE_LABELS[value] || value || '—'
-}
-
-export function redistributionDecisionLabel(value) {
-  return REDISTRIBUTION_DECISION_LABELS[value] || value
+export function formatBalanceTransactionAmount(transaction) {
+  const prefix = transaction.transaction_type === 'refund_in' ? '+' : '−'
+  return `${prefix}${formatMoney(transaction.amount)}`
 }

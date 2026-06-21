@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { login, parseApiError, register } from '../api/client'
+import PasswordInput from '../components/PasswordInput'
 
 const initialForm = {
   full_name: '',
@@ -69,6 +70,8 @@ export default function Register() {
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl bg-white p-8 shadow-md">
+        <p className="text-sm font-semibold text-teal-600">е-Көмек</p>
+        <p className="text-xs text-slate-500">Сенімді көмек</p>
         <h1 className="text-2xl font-semibold text-slate-800">Регистрация</h1>
         <input
           type="text"
@@ -111,23 +114,19 @@ export default function Register() {
           <option value="donor">Донор</option>
           <option value="author">Автор сбора</option>
         </select>
-        <input
-          type="password"
+        <PasswordInput
           placeholder="Пароль"
           value={form.password}
           onChange={(e) => updateField('password', e.target.value)}
           required
           minLength={8}
-          className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
         />
         <p className="text-xs text-slate-500">Минимум 8 символов</p>
-        <input
-          type="password"
+        <PasswordInput
           placeholder="Повторите пароль"
           value={form.repeat_password}
           onChange={(e) => updateField('repeat_password', e.target.value)}
           required
-          className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
         />
         <label className="flex items-start gap-3 text-sm text-slate-600">
           <input

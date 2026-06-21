@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchMe, login, parseApiError } from '../api/client'
+import PasswordInput from '../components/PasswordInput'
 
 const roleHome = {
   moderator: '/moderator',
@@ -41,6 +42,8 @@ export default function Login() {
   return (
     <div className="mx-auto max-w-md px-4 py-16">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl bg-white p-8 shadow-md">
+        <p className="text-sm font-semibold text-teal-600">е-Көмек</p>
+        <p className="text-xs text-slate-500">Сенімді көмек</p>
         <h1 className="text-2xl font-semibold text-slate-800">Вход</h1>
         {nextPath && (
           <p className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-slate-600">
@@ -55,13 +58,11 @@ export default function Login() {
           required
           className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
         />
-        <input
-          type="password"
+        <PasswordInput
           placeholder="Пароль"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -5,7 +7,32 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from apps.antifraud.services import is_high_risk
 from apps.common.validators import validate_iin
 
-from .models import Role, User
+from .models import BalanceTransaction, Role, User
+
+
+class BalanceTransactionSerializer(serializers.ModelSerializer):
+    type_label = serializers.CharField(source="get_transaction_type_display", read_only=True)
+
+    class Meta:
+        model = BalanceTransaction
+        fields = (
+            "id",
+            "amount",
+            "transaction_type",
+            "type_label",
+            "description",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class BalanceWithdrawSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        required=False,
+        min_value=Decimal("0.01"),
+    )
 
 
 class UserSerializer(serializers.ModelSerializer):

@@ -1,4 +1,4 @@
-# Charity Platform — Backend (Django + DRF)
+# е-Көмек — Backend (Django + DRF)
 
 Веб-платформа цифровизации пожертвований и благотворительности.
 

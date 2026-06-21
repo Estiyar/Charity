@@ -3,7 +3,7 @@ export default function Footer() {
     <footer className="mt-16 border-t border-sky-100 bg-white">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-3">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">Charity Platform</h3>
+          <h3 className="text-lg font-semibold text-slate-800">е-Көмек</h3>
           <p className="mt-2 text-sm text-slate-600">
             Цифровая платформа благотворительности с проверкой документов и прозрачной историей расходов.
           </p>
@@ -23,7 +23,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="border-t border-sky-100 py-4 text-center text-sm text-slate-500">
-        © 2026 Charity Platform. MVP demo version.
+        © 2026 е-Көмек. MVP demo version.
       </div>
     </footer>
   )

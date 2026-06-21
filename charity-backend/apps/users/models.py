@@ -40,6 +40,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     iin = models.CharField(max_length=12, unique=True, null=True, blank=True)
     role = models.CharField(max_length=16, choices=Role.choices, default=Role.DONOR)
     status = models.CharField(max_length=16, choices=UserStatus.choices, default=UserStatus.ACTIVE)
+    balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
@@ -65,14 +66,42 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.status == UserStatus.BLOCKED
 
 
+class BalanceTransactionType(models.TextChoices):
+    REFUND_IN = "refund_in", "Возврат на баланс"
+    WITHDRAW_OUT = "withdraw_out", "Вывод средств"
+
+
+class BalanceTransaction(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="balance_transactions",
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    transaction_type = models.CharField(
+        max_length=16,
+        choices=BalanceTransactionType.choices,
+    )
+    description = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.transaction_type} {self.amount} @ user {self.user_id}"
+
+
 class PlatformSettings(models.Model):
-    site_name = models.CharField(max_length=255, default="Charity Platform")
+    site_name = models.CharField(max_length=255, default="е-Көмек")
     demo_payment_enabled = models.BooleanField(default=True)
     bank_integration_stub = models.BooleanField(default=True)
     escrow_integration_stub = models.BooleanField(default=True)
     pdf_auto_check_stub = models.BooleanField(default=True)
     notifications_stub = models.BooleanField(default=True)
     egov_integration_stub = models.BooleanField(default=True)
+    refund_commission_percent = models.PositiveSmallIntegerField(default=10)
+    refund_deadline_days = models.PositiveSmallIntegerField(default=7)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

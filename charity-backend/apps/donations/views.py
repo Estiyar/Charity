@@ -10,13 +10,16 @@ from apps.cards.models import FundraisingCard
 from apps.common.card_status import CardStatus, PUBLIC_STATUSES
 from apps.documents.models import Document, DocumentStatus
 
-from .models import Donation
+from .models import Donation, RefundDecision, RefundDecisionStatus
 from .serializers import (
     DONATION_SUCCESS_MESSAGE,
     DonateSerializer,
     DonationSerializer,
     MyDonationSerializer,
+    RefundDecisionChooseSerializer,
+    RefundDecisionSerializer,
 )
+from .services import RefundDecisionError, apply_refund_choice
 
 
 class PublicCardMixin:
@@ -78,6 +81,66 @@ class MyDonationsListView(generics.ListAPIView):
             .select_related("card")
             .order_by("-created_at")
         )
+
+
+class MyRefundDecisionsListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = RefundDecisionSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            RefundDecision.objects.filter(
+                donor=self.request.user,
+                status=RefundDecisionStatus.PENDING,
+            )
+            .select_related("card", "donation", "target_card")
+            .order_by("deadline")
+        )
+
+
+class MyRefundHistoryListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = RefundDecisionSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            RefundDecision.objects.filter(donor=self.request.user)
+            .exclude(status=RefundDecisionStatus.PENDING)
+            .select_related("card", "donation", "target_card")
+            .order_by("-resolved_at", "-id")
+        )
+
+
+class RefundDecisionChooseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        decision = get_object_or_404(
+            RefundDecision.objects.select_related("card"),
+            pk=pk,
+            donor=request.user,
+        )
+        serializer = RefundDecisionChooseSerializer(
+            data=request.data,
+            context={"decision": decision},
+        )
+        serializer.is_valid(raise_exception=True)
+        try:
+            decision = apply_refund_choice(
+                decision,
+                serializer.validated_data["choice"],
+                target_card=serializer.validated_data.get("target_card"),
+            )
+        except RefundDecisionError as exc:
+            if exc.field:
+                return Response(
+                    {exc.field: [exc.message]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response({"detail": exc.message}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(RefundDecisionSerializer(decision).data)
 
 
 class PlatformStatsView(APIView):

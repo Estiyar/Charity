@@ -7,11 +7,10 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.cards.models import City, Diagnosis, FundraisingCard
-from apps.common.card_status import CardStatus
 from apps.documents.models import Document, DocumentStatus
 from apps.donations.models import Donation
 from apps.expenses.models import Expense, ExpenseStatus
-from apps.moderation.models import ModerationLog, RedistributionDecision
+from apps.moderation.models import ModerationLog
 from apps.users.models import PlatformSettings, Role
 
 User = get_user_model()
@@ -42,7 +41,6 @@ class Command(BaseCommand):
         self._create_donations(cards, users["donors"])
         self._create_expenses(cards)
         self._create_moderation_logs(cards, users["moderators"])
-        self._create_redistribution(cards, users["moderators"][0])
         PlatformSettings.get_solo()
         self.stdout.write(self.style.SUCCESS("Тестовые данные загружены."))
         self.stdout.write("Учётные записи: пароль для всех — demo123456")
@@ -52,7 +50,6 @@ class Command(BaseCommand):
         self.stdout.write("  donor1@charity.test … donor4@charity.test")
 
     def _clear_data(self):
-        RedistributionDecision.objects.all().delete()
         ModerationLog.objects.all().delete()
         Expense.objects.all().delete()
         Donation.objects.all().delete()
@@ -220,12 +217,3 @@ class Command(BaseCommand):
                 action="review",
                 comment="Проверка тестовых данных",
             )
-
-    def _create_redistribution(self, cards, moderator):
-        card = next(card for card in cards if card.status == CardStatus.REDISTRIBUTION)
-        RedistributionDecision.objects.create(
-            card=card,
-            decision_type=RedistributionDecision.DecisionType.FUND,
-            comment="Передано в общий фонд (демо)",
-            created_by=moderator,
-        )
