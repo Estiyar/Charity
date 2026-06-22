@@ -172,7 +172,7 @@ class CardAPITestCase(APITestCase):
 
     def test_list_shows_public_cards_only_for_anonymous(self):
         public_card = self._create_card(card_status=CardStatus.ACTIVE)
-        self._create_card(recipient_iin=ALT_RECIPIENT_IIN)
+        self._create_card(author=self.other_author, recipient_iin=ALT_RECIPIENT_IIN)
 
         response = self.client.get("/api/cards/")
 
@@ -298,12 +298,26 @@ class CardAPITestCase(APITestCase):
 
     def test_my_cards_returns_all_statuses(self):
         draft = self._create_card()
-        pending = self._create_card(recipient_iin=ALT_RECIPIENT_IIN)
-        pending.status = CardStatus.PENDING_MODERATION
-        pending.save(update_fields=["status"])
-        active = self._create_card(recipient_iin=THIRD_RECIPIENT_IIN)
-        active.status = CardStatus.ACTIVE
-        active.save(update_fields=["status"])
+        pending = FundraisingCard.objects.create(
+            author=self.author,
+            full_name="Другой получатель",
+            diagnosis="Диабет",
+            city="Астана",
+            target_amount=Decimal("300000.00"),
+            end_date=date.today() + timedelta(days=60),
+            status=CardStatus.PENDING_MODERATION,
+            recipient_iin=ALT_RECIPIENT_IIN,
+        )
+        active = FundraisingCard.objects.create(
+            author=self.author,
+            full_name="Третий получатель",
+            diagnosis="Травма",
+            city="Шымкент",
+            target_amount=Decimal("400000.00"),
+            end_date=date.today() + timedelta(days=90),
+            status=CardStatus.ACTIVE,
+            recipient_iin=THIRD_RECIPIENT_IIN,
+        )
 
         self.client.force_authenticate(user=self.author)
         response = self.client.get("/api/cards/my/")
@@ -364,6 +378,29 @@ class CardAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("recipient_iin", response.data)
+
+    def test_create_card_rejects_second_active_fundraiser_for_author(self):
+        self._create_card()
+        payload = {**self.card_payload, "recipient_iin": ALT_RECIPIENT_IIN}
+        self.client.force_authenticate(user=self.author)
+        response = self.client.post("/api/cards/", payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("non_field_errors", response.data)
+        self.assertEqual(
+            response.data["non_field_errors"][0],
+            "У вас уже есть активный сбор.",
+        )
+
+    def test_create_card_allowed_after_completed_fundraiser(self):
+        completed = self._create_card()
+        completed.status = CardStatus.COMPLETED
+        completed.save(update_fields=["status"])
+        payload = {**self.card_payload, "recipient_iin": ALT_RECIPIENT_IIN}
+        self.client.force_authenticate(user=self.author)
+        response = self.client.post("/api/cards/", payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_create_card_sets_is_self_when_author_is_recipient(self):
         from apps.medregistry.models import Gender, MedicalDiagnosis, MedicalRecord

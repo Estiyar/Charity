@@ -15,7 +15,7 @@ class FundraiserCreationError(Exception):
         super().__init__(errors)
 
 
-ACTIVE_RECIPIENT_STATUSES = {
+ACTIVE_FUNDRAISER_STATUSES = {
     CardStatus.DRAFT,
     CardStatus.PENDING_MODERATION,
     CardStatus.REVISION_REQUIRED,
@@ -27,7 +27,19 @@ ACTIVE_RECIPIENT_STATUSES = {
 def recipient_has_active_fundraiser(recipient_iin):
     return FundraisingCard.objects.filter(
         recipient_iin=recipient_iin,
-        status__in=ACTIVE_RECIPIENT_STATUSES,
+        status__in=ACTIVE_FUNDRAISER_STATUSES,
+    ).exists()
+
+
+def author_has_active_fundraiser(author):
+    if not author.iin:
+        return FundraisingCard.objects.filter(
+            author=author,
+            status__in=ACTIVE_FUNDRAISER_STATUSES,
+        ).exists()
+    return FundraisingCard.objects.filter(
+        author__iin=author.iin,
+        status__in=ACTIVE_FUNDRAISER_STATUSES,
     ).exists()
 
 
@@ -72,6 +84,9 @@ def prepare_fundraiser_data(author, validated_data):
     recipient_error = check_blocked_iin(recipient_iin, "recipient_iin")
     if recipient_error:
         errors.update(recipient_error)
+
+    if author_has_active_fundraiser(author):
+        errors["non_field_errors"] = ["У вас уже есть активный сбор."]
 
     if recipient_has_active_fundraiser(recipient_iin):
         errors["recipient_iin"] = "У получателя уже есть активный сбор."
