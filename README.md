@@ -189,3 +189,4 @@ These cannot be completed without credentials, contracts, or legal access:
 
 Высокий риск блокирует регистрацию **автора** и создание сбора. Донор с high-risk ИИН может зарегистрироваться. Проверка идёт через verification-service, не через прямое чтение таблиц.
 # e-komek
+# e-komek
