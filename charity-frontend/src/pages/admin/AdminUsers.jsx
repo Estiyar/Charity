@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { assignUserRole, blockUser, fetchAdminUsers, unblockUser } from '../../api/client'
 
 const roles = ['donor', 'author', 'moderator', 'admin']
@@ -52,7 +53,11 @@ export default function AdminUsers() {
           <tbody>
             {users.map((user) => (
               <tr key={user.id} className="border-b border-sky-50">
-                <td className="py-3 pr-4">{user.full_name}</td>
+                <td className="py-3 pr-4">
+                  <Link to={`/profile/${user.id}`} className="font-medium text-teal-600 hover:underline">
+                    {user.full_name}
+                  </Link>
+                </td>
                 <td className="py-3 pr-4">{user.email}</td>
                 <td className="py-3 pr-4">
                   <select

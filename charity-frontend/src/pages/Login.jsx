@@ -30,7 +30,7 @@ export default function Login() {
       navigate(destination)
     } catch (err) {
       if (!err.data && !err.status) {
-        setError('Сервер недоступен. Запустите backend: python manage.py runserver')
+        setError('Сервер недоступен. Откройте сайт на http://localhost:15173 и убедитесь, что Docker стек запущен.')
         return
       }
       setError(parseApiError(err.data, 'Неверный email или пароль'))

@@ -19,7 +19,7 @@ from .serializers import (
     RefundDecisionChooseSerializer,
     RefundDecisionSerializer,
 )
-from .services import RefundDecisionError, apply_refund_choice, maybe_auto_complete_on_goal
+from .services import DONOR_REFUND_DISABLED_MESSAGE, RefundDecisionError, apply_refund_choice, maybe_auto_complete_on_goal
 
 
 class PublicCardMixin:
@@ -143,6 +143,31 @@ class RefundDecisionChooseView(APIView):
                 )
             return Response({"detail": exc.message}, status=status.HTTP_400_BAD_REQUEST)
         return Response(RefundDecisionSerializer(decision).data)
+
+
+class ClosedRefundApiView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk=None):
+        return Response(
+            {"detail": DONOR_REFUND_DISABLED_MESSAGE, "code": "refund_disabled"},
+            status=status.HTTP_410_GONE,
+        )
+
+    def post(self, request, pk=None):
+        return self.get(request, pk)
+
+
+class MyRedistributionListView(MyRefundDecisionsListView):
+    pass
+
+
+class MyRedistributionHistoryListView(MyRefundHistoryListView):
+    pass
+
+
+class RedistributionChooseView(RefundDecisionChooseView):
+    pass
 
 
 class PlatformStatsView(APIView):

@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+media/
+private_media/
+.pytest_cache/
+.coverage
+.env
+.env.local
+*.pem
+*.key

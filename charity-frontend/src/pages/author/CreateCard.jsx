@@ -1,16 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { createCard, fetchMedicalRecord, parseApiError, submitCard, uploadDocument } from '../../api/client'
+import { createCard, parseApiError, submitCard, uploadDocument } from '../../api/client'
 import FileUploadField from '../../components/FileUploadField'
+import RecipientVerifyPanel from '../../components/RecipientVerifyPanel'
 
 const initialForm = {
-  recipient_iin: '',
-  full_name: '',
-  diagnosis: '',
-  city: '',
-  clinic: '',
-  age: '',
-  gender: 'female',
   description: '',
   target_amount: '',
   end_date: '',
@@ -39,26 +33,9 @@ function appendIfPresent(formData, key, value) {
   }
 }
 
-function calculateAge(birthDate) {
-  const birth = new Date(birthDate)
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  const monthDiff = today.getMonth() - birth.getMonth()
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age -= 1
-  }
-  return String(age)
-}
-
-function buildFormData(form, photoFile) {
+function buildFormData(form, photoFile, recipientSessionToken) {
   const formData = new FormData()
-  formData.append('recipient_iin', form.recipient_iin)
-  appendIfPresent(formData, 'full_name', form.full_name)
-  appendIfPresent(formData, 'diagnosis', form.diagnosis)
-  appendIfPresent(formData, 'city', form.city)
-  appendIfPresent(formData, 'clinic', form.clinic)
-  appendIfPresent(formData, 'age', form.age)
-  appendIfPresent(formData, 'gender', form.gender)
+  formData.append('recipient_session_token', recipientSessionToken)
   appendIfPresent(formData, 'description', form.description)
   formData.append('target_amount', form.target_amount)
   formData.append('end_date', form.end_date)
@@ -72,10 +49,14 @@ function buildFormData(form, photoFile) {
   return formData
 }
 
-async function uploadDocuments(cardId, documentFiles) {
+async function uploadDocuments(cardId, documentFiles, extras) {
   for (const file of documentFiles) {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('document_type', extras.document_type || 'medical')
+    if (extras.issuer) formData.append('issuer', extras.issuer)
+    if (extras.issued_at) formData.append('issued_at', extras.issued_at)
+    if (extras.expires_at) formData.append('expires_at', extras.expires_at)
     await uploadDocument(cardId, formData)
   }
 }
@@ -83,64 +64,31 @@ async function uploadDocuments(cardId, documentFiles) {
 export default function CreateCard() {
   const navigate = useNavigate()
   const [form, setForm] = useState(initialForm)
+  const [recipientSessionToken, setRecipientSessionToken] = useState('')
   const [photoFile, setPhotoFile] = useState(null)
   const [documentFiles, setDocumentFiles] = useState([])
+  const [documentMeta, setDocumentMeta] = useState({ issuer: '', issued_at: '', expires_at: '' })
   const [error, setError] = useState('')
-  const [lookupMessage, setLookupMessage] = useState('')
-  const [lookupLoading, setLookupLoading] = useState(false)
   const [loading, setLoading] = useState(false)
 
   function updateField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  function validateConsent() {
-    if (!form.personal_data_consent) {
-      setError('Необходимо согласие на обработку персональных данных.')
-      return false
-    }
-    return true
-  }
-
-  async function handleRecipientIinLookup() {
-    setLookupMessage('')
-    setError('')
-    if (!/^\d{12}$/.test(form.recipient_iin)) {
-      setLookupMessage('Введите ИИН получателя из 12 цифр.')
-      return
-    }
-    setLookupLoading(true)
-    try {
-      const record = await fetchMedicalRecord(form.recipient_iin)
-      const diagnosis = record.diagnoses?.[0]?.name || ''
-      setForm((prev) => ({
-        ...prev,
-        full_name: record.full_name || '',
-        city: record.city || '',
-        clinic: record.clinic || '',
-        diagnosis,
-        gender: record.gender || prev.gender,
-        age: record.birth_date ? calculateAge(record.birth_date) : prev.age,
-      }))
-      setLookupMessage('Данные получателя загружены из медреестра.')
-    } catch (err) {
-      setLookupMessage(parseApiError(err.data, 'Получатель не найден в медреестре.'))
-    } finally {
-      setLookupLoading(false)
-    }
-  }
-
   async function handleSave(submitForReview) {
     setError('')
-    if (!/^\d{12}$/.test(form.recipient_iin)) {
-      setError('ИИН получателя должен содержать ровно 12 цифр.')
+    if (!recipientSessionToken) {
+      setError('Сначала подтвердите получателя.')
       return
     }
-    if (!validateConsent()) return
+    if (!form.personal_data_consent) {
+      setError('Необходимо согласие на обработку персональных данных.')
+      return
+    }
     setLoading(true)
     try {
-      const card = await createCard(buildFormData(form, photoFile))
-      await uploadDocuments(card.id, documentFiles)
+      const card = await createCard(buildFormData(form, photoFile, recipientSessionToken))
+      await uploadDocuments(card.id, documentFiles, documentMeta)
       if (submitForReview) {
         await submitCard(card.id)
       }
@@ -157,219 +105,67 @@ export default function CreateCard() {
       <Link to="/author" className="text-sm font-medium text-teal-600 hover:underline">
         ← Личный кабинет
       </Link>
-      <form
-        onSubmit={(event) => event.preventDefault()}
-        className="space-y-5 rounded-3xl bg-white p-8 shadow-md"
-      >
+      <form onSubmit={(event) => event.preventDefault()} className="space-y-5 rounded-3xl bg-white p-8 shadow-md">
         <h1 className="text-2xl font-semibold text-slate-800">Создать сбор</h1>
-
-        <div className="space-y-2">
-          <FieldLabel required>ИИН получателя</FieldLabel>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={form.recipient_iin}
-              onChange={(e) => updateField('recipient_iin', e.target.value.replace(/\D/g, '').slice(0, 12))}
-              onBlur={handleRecipientIinLookup}
-              required
-              pattern="\d{12}"
-              maxLength={12}
-              className={inputClassName()}
-            />
-            <button
-              type="button"
-              onClick={handleRecipientIinLookup}
-              disabled={lookupLoading}
-              className="shrink-0 rounded-2xl border border-teal-200 px-4 py-3 text-sm font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-60"
-            >
-              {lookupLoading ? 'Проверка...' : 'Проверить'}
-            </button>
-          </div>
-          {lookupMessage && <p className="text-sm text-slate-600">{lookupMessage}</p>}
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel required>ФИО получателя</FieldLabel>
-          <input
-            type="text"
-            value={form.full_name}
-            onChange={(e) => updateField('full_name', e.target.value)}
-            required
-            className={inputClassName()}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel required>Диагноз</FieldLabel>
-          <input
-            type="text"
-            value={form.diagnosis}
-            onChange={(e) => updateField('diagnosis', e.target.value)}
-            required
-            className={inputClassName()}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel required>Город</FieldLabel>
-          <input
-            type="text"
-            value={form.city}
-            onChange={(e) => updateField('city', e.target.value)}
-            required
-            className={inputClassName()}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>Поликлиника</FieldLabel>
-          <input
-            type="text"
-            value={form.clinic}
-            onChange={(e) => updateField('clinic', e.target.value)}
-            className={inputClassName()}
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <FieldLabel>Возраст</FieldLabel>
-            <input
-              type="number"
-              min="0"
-              value={form.age}
-              onChange={(e) => updateField('age', e.target.value)}
-              className={inputClassName()}
-            />
-          </div>
-          <div className="space-y-2">
-            <FieldLabel>Пол</FieldLabel>
-            <select
-              value={form.gender}
-              onChange={(e) => updateField('gender', e.target.value)}
-              className={inputClassName()}
-            >
-              <option value="female">Женский</option>
-              <option value="male">Мужской</option>
-            </select>
-          </div>
-        </div>
-
+        <p className="text-sm text-slate-500">
+          Получатель — отдельная сущность. Подтвердите его ЭЦП, официальным источником или выберите сохранённого.
+        </p>
+        <RecipientVerifyPanel
+          onVerified={({ token }) => setRecipientSessionToken(token || '')}
+        />
         <div className="space-y-2">
           <FieldLabel>Описание</FieldLabel>
-          <textarea
-            value={form.description}
-            onChange={(e) => updateField('description', e.target.value)}
-            rows={4}
-            className={inputClassName()}
-          />
+          <textarea value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={4} aria-label="Описание" className={inputClassName()} />
         </div>
-
         <div className="space-y-2">
           <FieldLabel required>Целевая сумма</FieldLabel>
-          <input
-            type="number"
-            min="1"
-            step="0.01"
-            value={form.target_amount}
-            onChange={(e) => updateField('target_amount', e.target.value)}
-            required
-            className={inputClassName()}
-          />
+          <input type="number" min="1" step="0.01" value={form.target_amount} onChange={(e) => updateField('target_amount', e.target.value)} required aria-label="Целевая сумма" className={inputClassName()} />
         </div>
-
         <div className="space-y-2">
           <FieldLabel required>Дата окончания сбора</FieldLabel>
-          <input
-            type="date"
-            value={form.end_date}
-            onChange={(e) => updateField('end_date', e.target.value)}
-            required
-            className={inputClassName()}
-          />
+          <input type="date" value={form.end_date} onChange={(e) => updateField('end_date', e.target.value)} required aria-label="Дата окончания сбора" className={inputClassName()} />
         </div>
-
         <div className="space-y-2">
           <FieldLabel>Номер удостоверения</FieldLabel>
-          <input
-            type="text"
-            value={form.document_number}
-            onChange={(e) => updateField('document_number', e.target.value)}
-            className={inputClassName()}
-          />
+          <input type="text" value={form.document_number} onChange={(e) => updateField('document_number', e.target.value)} aria-label="Номер удостоверения" className={inputClassName()} />
         </div>
-
         <div className="space-y-2">
           <FieldLabel>Телефон для связи</FieldLabel>
-          <input
-            type="text"
-            value={form.contact_phone}
-            onChange={(e) => updateField('contact_phone', e.target.value)}
-            className={inputClassName()}
-          />
+          <input type="text" value={form.contact_phone} onChange={(e) => updateField('contact_phone', e.target.value)} aria-label="Телефон для связи" className={inputClassName()} />
         </div>
-
         <div className="space-y-2">
           <FieldLabel>Email для связи</FieldLabel>
-          <input
-            type="email"
-            value={form.contact_email}
-            onChange={(e) => updateField('contact_email', e.target.value)}
-            className={inputClassName()}
-          />
+          <input type="email" value={form.contact_email} onChange={(e) => updateField('contact_email', e.target.value)} aria-label="Email для связи" className={inputClassName()} />
         </div>
-
         <div className="space-y-2">
           <FieldLabel>Фото (JPG, PNG)</FieldLabel>
-          <FileUploadField
-            id="photo-upload"
-            accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-            label="Выбрать фото"
-            files={photoFile}
-            onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-          />
+          <FileUploadField id="photo-upload" accept=".jpg,.jpeg,.png,image/jpeg,image/png" label="Выбрать фото" files={photoFile} onChange={(e) => setPhotoFile(e.target.files?.[0] || null)} />
         </div>
-
         <div className="space-y-2">
-          <FieldLabel>Документы (PDF)</FieldLabel>
-          <FileUploadField
-            id="documents-upload"
-            accept=".pdf,application/pdf"
-            multiple
-            label="Выбрать PDF"
-            files={documentFiles}
-            onChange={(e) => setDocumentFiles(Array.from(e.target.files || []))}
-          />
+          <FieldLabel>Документы представительства / меддокументы (PDF, JPG, PNG)</FieldLabel>
+          <FileUploadField id="documents-upload" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple label="Выбрать файлы" files={documentFiles} onChange={(e) => setDocumentFiles(Array.from(e.target.files || []))} />
+          <input value={documentMeta.issuer} onChange={(e) => setDocumentMeta((current) => ({ ...current, issuer: e.target.value }))} placeholder="Клиника / организация" aria-label="Клиника или организация" className={inputClassName()} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <FieldLabel>Дата выдачи</FieldLabel>
+              <input type="date" value={documentMeta.issued_at} onChange={(e) => setDocumentMeta((current) => ({ ...current, issued_at: e.target.value }))} aria-label="Дата выдачи документа" className={inputClassName()} />
+            </div>
+            <div className="space-y-2">
+              <FieldLabel>Срок действия</FieldLabel>
+              <input type="date" value={documentMeta.expires_at} onChange={(e) => setDocumentMeta((current) => ({ ...current, expires_at: e.target.value }))} aria-label="Срок действия документа" className={inputClassName()} />
+            </div>
+          </div>
         </div>
-
         <label className="flex items-start gap-3 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            checked={form.personal_data_consent}
-            onChange={(e) => updateField('personal_data_consent', e.target.checked)}
-            className="mt-1"
-            required
-          />
+          <input type="checkbox" checked={form.personal_data_consent} onChange={(e) => updateField('personal_data_consent', e.target.checked)} className="mt-1" required />
           <span>Согласен(на) на обработку персональных данных</span>
         </label>
-
         {error && <p className="text-sm text-red-600">{error}</p>}
-
         <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => handleSave(false)}
-            className="rounded-2xl border border-teal-200 px-6 py-4 font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-60"
-          >
+          <button type="button" disabled={loading || !recipientSessionToken} onClick={() => handleSave(false)} className="rounded-2xl border border-teal-200 px-6 py-4 font-semibold text-teal-700 disabled:opacity-60">
             {loading ? 'Сохранение...' : 'Сохранить черновик'}
           </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => handleSave(true)}
-            className="rounded-2xl bg-teal-500 px-6 py-4 font-semibold text-white hover:bg-teal-600 disabled:opacity-60"
-          >
+          <button type="button" disabled={loading || !recipientSessionToken} onClick={() => handleSave(true)} className="rounded-2xl bg-teal-500 px-6 py-4 font-semibold text-white disabled:opacity-60">
             {loading ? 'Отправка...' : 'Отправить на модерацию'}
           </button>
         </div>

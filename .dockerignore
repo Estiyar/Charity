@@ -1,0 +1,10 @@
+.git
+**/__pycache__
+**/*.pyc
+**/.env
+**/db.sqlite3
+**/media
+charity-frontend/node_modules
+charity-frontend/dist
+charity-backend
+*.md

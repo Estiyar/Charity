@@ -8,11 +8,13 @@ from apps.users.models import PlatformSettings
 
 from .models import Donation, PaymentStatus, RefundChoice, RefundDecision
 from .services import (
+    DONOR_REFUND_DISABLED_MESSAGE,
+    OWN_FUNDRAISER_DONATION_MESSAGE,
+    PUBLIC_REDISTRIBUTION_CHOICES,
     RefundDecisionError,
     calculate_refund_payout,
     get_redirect_candidates,
     is_own_fundraiser,
-    OWN_FUNDRAISER_DONATION_MESSAGE,
     validate_redirect_target,
 )
 
@@ -159,8 +161,8 @@ class RefundDecisionSerializer(serializers.ModelSerializer):
     def get_options(self, obj):
         return [
             {"value": RefundChoice.KEEP, "label": "Оставить семье получателя"},
-            {"value": RefundChoice.REFUND, "label": "Вернуть на счёт"},
-            {"value": RefundChoice.REDIRECT, "label": "Перенаправить на другой сбор"},
+            {"value": RefundChoice.HOLD, "label": "Оставить на текущей карточке до завершения проверки"},
+            {"value": RefundChoice.REDIRECT, "label": "Перенаправить на другой активный сбор"},
         ]
 
     def get_redirect_options(self, obj):
@@ -168,6 +170,8 @@ class RefundDecisionSerializer(serializers.ModelSerializer):
         return RefundRedirectOptionSerializer(candidates, many=True).data
 
     def get_refund_payout(self, obj):
+        if obj.choice != RefundChoice.REFUND:
+            return None
         settings = PlatformSettings.get_solo()
         payout, _commission = calculate_refund_payout(
             obj.share_amount,
@@ -185,9 +189,9 @@ class RefundDecisionChooseSerializer(serializers.Serializer):
     target_card_id = serializers.IntegerField(required=False)
 
     def validate_choice(self, value):
-        if value == RefundChoice.EMPTY:
-            raise serializers.ValidationError("Выберите один из вариантов распределения.")
-        if value not in {RefundChoice.KEEP, RefundChoice.REFUND, RefundChoice.REDIRECT}:
+        if value == RefundChoice.REFUND:
+            raise serializers.ValidationError(DONOR_REFUND_DISABLED_MESSAGE)
+        if value not in PUBLIC_REDISTRIBUTION_CHOICES:
             raise serializers.ValidationError("Недопустимый вариант распределения.")
         return value
 

@@ -26,6 +26,11 @@ function CardArticle({ card, onSubmit }) {
               {statusLabel(card.status)}
             </span>
           </div>
+          {card.duplicate_suspected ? (
+            <p className="text-sm text-amber-800">
+              Отправлено на ручную проверку из-за возможных совпадений с другими сборами.
+            </p>
+          ) : null}
           <p className="text-sm text-slate-500">{card.diagnosis} · {card.city}</p>
           <p className="text-sm text-slate-600">
             Цель {formatMoney(card.target_amount)} · Собрано {formatMoney(card.collected_amount)}
@@ -42,6 +47,15 @@ function CardArticle({ card, onSubmit }) {
               На модерацию
             </button>
           )}
+          {card.status === 'revision_required' && (
+            <button
+              type="button"
+              onClick={() => onSubmit(card.id)}
+              className="rounded-2xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Отправить снова
+            </button>
+          )}
           <Link
             to={`/author/cards/${card.id}`}
             className="rounded-2xl bg-teal-500 px-4 py-2 text-sm font-semibold text-white"
@@ -52,7 +66,7 @@ function CardArticle({ card, onSubmit }) {
       </div>
       {showModeratorComment && (
         <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm text-slate-700">
-          <p className="font-medium text-slate-800">Комментарий модератора</p>
+          <p className="font-medium text-slate-800">Что нужно исправить</p>
           <p>{card.moderator_comment}</p>
         </div>
       )}
@@ -81,10 +95,12 @@ export default function AuthorFundraisers() {
     loadCards()
   }, [loadCards])
 
-  const pendingModerationCards = cards.filter((card) => card.status === 'pending_moderation')
+  const pendingModerationCards = cards.filter((card) => (
+    card.status === 'pending_moderation' || card.status === 'manual_review' || card.status === 'suspended'
+  ))
   const revisionRequiredCards = cards.filter((card) => card.status === 'revision_required')
   const myCards = cards.filter(
-    (card) => card.status !== 'pending_moderation' && card.status !== 'revision_required',
+    (card) => !['pending_moderation', 'manual_review', 'suspended', 'revision_required'].includes(card.status),
   )
 
   async function handleSubmit(cardId) {

@@ -1,0 +1,448 @@
+x-backend-env: &backend-env
+  SECRET_KEY: ${SECRET_KEY:-dev-insecure-change-me}
+  JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-dev-insecure-change-me}
+  DEBUG: "True"
+  ALLOWED_HOSTS: "*"
+  DB_NAME: ekomek
+  DB_USER: ekomek
+  DB_PASSWORD: ekomek
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: amqp://ekomek:ekomek@rabbitmq:5672//
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
+  IDENTITY_SERVICE_URL: http://identity-service:8000
+  PROFILE_SERVICE_URL: http://profile-service:8000
+  CARDS_SERVICE_URL: http://cards-service:8000
+  VERIFICATION_SERVICE_URL: http://verification-service:8000
+  DOCUMENTS_SERVICE_URL: http://documents-service:8000
+  PAYMENTS_SERVICE_URL: http://payments-service:8000
+  MODERATION_SERVICE_URL: http://moderation-service:8000
+  EXPENSES_SERVICE_URL: http://expenses-service:8000
+  NOTIFICATIONS_SERVICE_URL: http://notifications-service:8000
+  ADMIN_SERVICE_URL: http://admin-service:8000
+  MEDIA_ROOT: /media
+  IIN_HMAC_PEPPER: ${IIN_HMAC_PEPPER:-dev-only-hmac-pepper-change-me}
+  SENSITIVE_ENCRYPTION_KEY: ${SENSITIVE_ENCRYPTION_KEY:-dev-only-encryption-key-change-me}
+  ECP_ADAPTER: ${ECP_ADAPTER:-ncalayer}
+  ECP_VERIFIER_URL: ${ECP_VERIFIER_URL:-}
+  ECP_OCSP_URL: ${ECP_OCSP_URL:-http://ocsp.pki.gov.kz/}
+  ECP_REQUIRE_NCA_ISSUER: ${ECP_REQUIRE_NCA_ISSUER:-True}
+  MEDICAL_SOURCE_ADAPTER: ${MEDICAL_SOURCE_ADAPTER:-official}
+  MEDICAL_SOURCE_URL: ${MEDICAL_SOURCE_URL:-}
+  PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:-dev}
+  PAYMENT_CURRENCY: KZT
+  PAYMENT_FRONTEND_URL: ${PAYMENT_FRONTEND_URL:-http://localhost:5173}
+  PAYMENT_PUBLIC_API_URL: ${PAYMENT_PUBLIC_API_URL:-http://localhost:8080}
+  PAYMENT_DEV_SECRET: ${PAYMENT_DEV_SECRET:-dev-payment-secret}
+  PAYOUT_ADAPTER: ${PAYOUT_ADAPTER:-dev}
+  PAYOUT_DEV_SECRET: ${PAYOUT_DEV_SECRET:-dev-payout-secret}
+  FREEDOMPAY_MERCHANT_ID: ${FREEDOMPAY_MERCHANT_ID:-}
+  FREEDOMPAY_SECRET: ${FREEDOMPAY_SECRET:-}
+  FREEDOMPAY_API_URL: ${FREEDOMPAY_API_URL:-https://api.freedompay.kz}
+  FREEDOMPAY_TESTING_MODE: ${FREEDOMPAY_TESTING_MODE:-True}
+
+x-django-build: &django-build
+  context: .
+  dockerfile: deploy/django.Dockerfile
+
+x-django-healthcheck: &django-healthcheck
+  healthcheck:
+    test:
+      [
+        "CMD",
+        "python",
+        "-c",
+        "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/')",
+      ]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 45s
+
+x-gateway-healthcheck: &gateway-healthcheck
+  healthcheck:
+    test:
+      [
+        "CMD",
+        "python",
+        "-c",
+        "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')",
+      ]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 30s
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ekomek
+      POSTGRES_USER: ekomek
+      POSTGRES_PASSWORD: ekomek
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ekomek -d ekomek"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ekomek
+      RABBITMQ_DEFAULT_PASS: ekomek
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    env_file:
+      - ./services/api-gateway/.env.example
+    ports:
+      - "8080:8080"
+    volumes:
+      - media_data:/media
+    <<: *gateway-healthcheck
+    depends_on:
+      redis:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      cards-service:
+        condition: service_healthy
+
+  identity-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/identity
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: identity
+    volumes:
+      - media_data:/media
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  identity-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/identity
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: identity
+    depends_on:
+      - identity-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  profile-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/profile
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: profile
+    volumes:
+      - media_data:/media
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  profile-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/profile
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: profile
+    depends_on:
+      - profile-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  cards-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/cards
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: cards
+    volumes:
+      - media_data:/media
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  cards-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/cards
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: cards
+    depends_on:
+      - cards-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  verification-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/verification
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: verification
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  verification-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/verification
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: verification
+    depends_on:
+      - verification-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  documents-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/documents
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: documents
+      PRIVATE_MEDIA_ROOT: /private_media
+    volumes:
+      - media_data:/media
+      - documents_private:/private_media
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  documents-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/documents
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: documents
+      PRIVATE_MEDIA_ROOT: /private_media
+    volumes:
+      - media_data:/media
+      - documents_private:/private_media
+    depends_on:
+      - documents-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  payments-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/payments
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: payments
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  payments-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/payments
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: payments
+    depends_on:
+      - payments-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  moderation-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/moderation
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: moderation
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  moderation-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/moderation
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: moderation
+    depends_on:
+      - moderation-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  expenses-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/expenses
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: expenses
+      PRIVATE_MEDIA_ROOT: /private_media
+    volumes:
+      - media_data:/media
+      - expenses_private:/private_media
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  expenses-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/expenses
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: expenses
+      PRIVATE_MEDIA_ROOT: /private_media
+    volumes:
+      - media_data:/media
+      - expenses_private:/private_media
+    depends_on:
+      - expenses-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  notifications-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/notifications
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: notifications
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  notifications-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/notifications
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: notifications
+    depends_on:
+      - notifications-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  admin-service:
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/admin
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: admin
+    <<: *django-healthcheck
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60"]
+
+  admin-worker:
+    profiles: ["workers"]
+    build:
+      <<: *django-build
+      args:
+        SERVICE_DIR: services/admin
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: admin
+    depends_on:
+      - admin-service
+    command: ["celery", "-A", "config", "worker", "--beat", "--loglevel=info", "--concurrency", "1"]
+
+  frontend:
+    build:
+      context: ./charity-frontend
+      args:
+        VITE_API_URL: http://localhost:8080/api
+        VITE_MEDIA_URL: http://localhost:8080
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  postgres_data:
+  media_data:
+  documents_private:
+  expenses_private:

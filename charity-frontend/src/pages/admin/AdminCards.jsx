@@ -3,8 +3,8 @@ import { changeCardStatus, fetchAdminCards } from '../../api/client'
 import { formatDate, formatMoney, statusLabel } from '../../utils/format'
 
 const statuses = [
-  'draft', 'pending_moderation', 'revision_required', 'approved', 'active',
-  'rejected', 'completed', 'deceased', 'redistribution', 'archived',
+  'draft', 'pending_moderation', 'manual_review', 'revision_required', 'approved', 'active',
+  'rejected', 'suspended', 'completed', 'deceased', 'redistribution', 'archived',
 ]
 
 export default function AdminCards() {

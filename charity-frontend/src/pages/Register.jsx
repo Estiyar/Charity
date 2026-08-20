@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { login, parseApiError, parseApiFieldErrors, register } from '../api/client'
+import { login, parseApiError, parseApiFieldErrors, registerWithEcp, requestEcpChallenge, verifyEcpSignature } from '../api/client'
+import { buildDevCms, isDevEcpEnabled, signChallengeWithNcaLayer } from '../api/ncalayer'
 import PasswordInput from '../components/PasswordInput'
 
 const initialForm = {
-  full_name: '',
   email: '',
   phone: '',
-  iin: '',
   password: '',
   repeat_password: '',
   role: 'donor',
@@ -35,6 +34,12 @@ export default function Register() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [form, setForm] = useState(initialForm)
+  const [ecpProfile, setEcpProfile] = useState(null)
+  const [ecpSessionToken, setEcpSessionToken] = useState('')
+  const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [signing, setSigning] = useState(false)
 
   useEffect(() => {
     const role = searchParams.get('role')
@@ -42,9 +47,6 @@ export default function Register() {
       setForm((prev) => ({ ...prev, role }))
     }
   }, [searchParams])
-  const [error, setError] = useState('')
-  const [fieldErrors, setFieldErrors] = useState({})
-  const [loading, setLoading] = useState(false)
 
   function clearFieldError(field) {
     setFieldErrors((prev) => {
@@ -61,34 +63,75 @@ export default function Register() {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
+  async function completeEcp(cms) {
+    const challenge = await requestEcpChallenge()
+    const verified = await verifyEcpSignature({
+      challenge_id: challenge.challenge_id,
+      cms: typeof cms === 'function' ? cms(challenge.challenge) : cms,
+    })
+    setEcpSessionToken(verified.ecp_session_token)
+    setEcpProfile(verified)
+  }
+
+  async function handleNcaLayerSign() {
+    setError('')
+    setSigning(true)
+    try {
+      const challenge = await requestEcpChallenge()
+      const cms = await signChallengeWithNcaLayer(challenge.challenge)
+      const verified = await verifyEcpSignature({
+        challenge_id: challenge.challenge_id,
+        cms,
+      })
+      setEcpSessionToken(verified.ecp_session_token)
+      setEcpProfile(verified)
+    } catch (err) {
+      setError(err.data ? parseApiError(err.data, 'Не удалось проверить ЭЦП.') : err.message)
+    } finally {
+      setSigning(false)
+    }
+  }
+
+  async function handleDevSign() {
+    setError('')
+    setSigning(true)
+    try {
+      await completeEcp((challenge) => buildDevCms(challenge))
+    } catch (err) {
+      setError(err.data ? parseApiError(err.data, 'Не удалось проверить тестовую ЭЦП.') : err.message)
+    } finally {
+      setSigning(false)
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
     setFieldErrors({})
+    if (!ecpSessionToken) {
+      setError('Сначала подпишите challenge электронной подписью.')
+      return
+    }
     if (!form.personal_data_consent) {
       setError('Необходимо согласие на обработку персональных данных.')
       return
     }
-    if (!/^\d{12}$/.test(form.iin)) {
-      setFieldErrors({ iin: 'ИИН должен содержать ровно 12 цифр.' })
-      return
-    }
     setLoading(true)
     try {
-      await register({
-        full_name: form.full_name,
+      await registerWithEcp({
+        ecp_session_token: ecpSessionToken,
         email: form.email,
         phone: form.phone,
-        iin: form.iin,
         password: form.password,
         repeat_password: form.repeat_password,
         role: form.role,
+        personal_data_consent: form.personal_data_consent,
       })
       await login(form.email, form.password)
       navigate(form.role === 'author' ? '/author' : '/')
     } catch (err) {
       if (!err.data && !err.status) {
-        setError('Сервер недоступен. Запустите backend: python manage.py runserver')
+        setError('Сервер недоступен.')
         return
       }
       const fields = parseApiFieldErrors(err.data)
@@ -108,108 +151,74 @@ export default function Register() {
     <div className="mx-auto max-w-lg px-4 py-16">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl bg-white p-8 shadow-md">
         <p className="text-sm font-semibold text-teal-600">е-Көмек</p>
-        <p className="text-xs text-slate-500">Сенімді көмек</p>
-        <h1 className="text-2xl font-semibold text-slate-800">Регистрация</h1>
-        <div className="space-y-1">
-          <input
-            type="text"
-            placeholder="ФИО"
-            value={form.full_name}
-            onChange={(e) => updateField('full_name', e.target.value)}
-            required
-            className={fieldClassName(fieldErrors.full_name)}
-          />
-          <FieldError message={fieldErrors.full_name} />
+        <h1 className="text-2xl font-semibold text-slate-800">Регистрация через ЭЦП</h1>
+        <p className="text-sm text-slate-500">
+          Подпишите одноразовый challenge в NCALayer. ФИО, ИИН и дата рождения заполнятся из сертификата и не редактируются.
+        </p>
+        <div className="space-y-2 rounded-2xl bg-sky-50 p-4">
+          {ecpProfile ? (
+            <div className="space-y-1 text-sm text-slate-700">
+              <p><span className="text-slate-500">ФИО:</span> {ecpProfile.full_name}</p>
+              <p><span className="text-slate-500">ИИН:</span> {ecpProfile.iin_masked}</p>
+              <p><span className="text-slate-500">Дата рождения:</span> {ecpProfile.birth_date || '—'}</p>
+              <p><span className="text-slate-500">Издатель:</span> {ecpProfile.issuer || '—'}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600">Сертификат ещё не подтверждён.</p>
+          )}
+          <button
+            type="button"
+            onClick={handleNcaLayerSign}
+            disabled={signing}
+            className="w-full rounded-2xl bg-slate-800 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-60"
+          >
+            {signing ? 'Подписание...' : 'Подписать через NCALayer'}
+          </button>
+          {isDevEcpEnabled() && (
+            <button
+              type="button"
+              onClick={handleDevSign}
+              disabled={signing}
+              className="w-full rounded-2xl border border-amber-300 bg-amber-50 px-6 py-3 text-sm font-semibold text-amber-800"
+            >
+              Локальный тестовый сертификат
+            </button>
+          )}
         </div>
         <div className="space-y-1">
-          <input
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) => updateField('email', e.target.value)}
-            required
-            className={fieldClassName(fieldErrors.email)}
-          />
+          <input type="email" placeholder="Email" value={form.email} onChange={(e) => updateField('email', e.target.value)} required className={fieldClassName(fieldErrors.email)} />
           <FieldError message={fieldErrors.email} />
         </div>
         <div className="space-y-1">
-          <input
-            type="text"
-            placeholder="Телефон"
-            value={form.phone}
-            onChange={(e) => updateField('phone', e.target.value)}
-            className={fieldClassName(fieldErrors.phone)}
-          />
+          <input type="text" placeholder="Телефон" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} required className={fieldClassName(fieldErrors.phone)} />
           <FieldError message={fieldErrors.phone} />
         </div>
         <div className="space-y-1">
-          <input
-            type="text"
-            placeholder="ИИН (12 цифр)"
-            value={form.iin}
-            onChange={(e) => updateField('iin', e.target.value.replace(/\D/g, '').slice(0, 12))}
-            required
-            pattern="\d{12}"
-            maxLength={12}
-            className={fieldClassName(fieldErrors.iin)}
-          />
-          <FieldError message={fieldErrors.iin} />
-        </div>
-        <div className="space-y-1">
-          <select
-            value={form.role}
-            onChange={(e) => updateField('role', e.target.value)}
-            className={fieldClassName(fieldErrors.role)}
-          >
+          <select value={form.role} onChange={(e) => updateField('role', e.target.value)} className={fieldClassName(fieldErrors.role)}>
             <option value="donor">Донор</option>
             <option value="author">Автор сбора</option>
           </select>
           <FieldError message={fieldErrors.role} />
         </div>
         <div className="space-y-1">
-          <PasswordInput
-            placeholder="Пароль"
-            value={form.password}
-            onChange={(e) => updateField('password', e.target.value)}
-            required
-            minLength={8}
-            className={passwordFieldClassName(fieldErrors.password)}
-          />
+          <PasswordInput placeholder="Пароль" value={form.password} onChange={(e) => updateField('password', e.target.value)} required minLength={8} className={passwordFieldClassName(fieldErrors.password)} />
           <FieldError message={fieldErrors.password} />
         </div>
-        <p className="text-xs text-slate-500">Минимум 8 символов</p>
         <div className="space-y-1">
-          <PasswordInput
-            placeholder="Повторите пароль"
-            value={form.repeat_password}
-            onChange={(e) => updateField('repeat_password', e.target.value)}
-            required
-            className={passwordFieldClassName(fieldErrors.repeat_password)}
-          />
+          <PasswordInput placeholder="Повторите пароль" value={form.repeat_password} onChange={(e) => updateField('repeat_password', e.target.value)} required className={passwordFieldClassName(fieldErrors.repeat_password)} />
           <FieldError message={fieldErrors.repeat_password} />
         </div>
         <label className="flex items-start gap-3 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            checked={form.personal_data_consent}
-            onChange={(e) => updateField('personal_data_consent', e.target.checked)}
-            className="mt-1"
-          />
+          <input type="checkbox" checked={form.personal_data_consent} onChange={(e) => updateField('personal_data_consent', e.target.checked)} className="mt-1" />
           <span>Согласен(на) на обработку персональных данных</span>
         </label>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-2xl bg-teal-500 px-6 py-4 font-semibold text-white hover:bg-teal-600 disabled:opacity-60"
-        >
+        <button type="submit" disabled={loading || !ecpSessionToken} className="w-full rounded-2xl bg-teal-500 px-6 py-4 font-semibold text-white hover:bg-teal-600 disabled:opacity-60">
           {loading ? 'Регистрация...' : 'Зарегистрироваться'}
         </button>
         <p className="text-center text-sm text-slate-600">
           Уже есть аккаунт?{' '}
-          <Link to="/login" className="font-medium text-teal-600 hover:underline">
-            Войти
-          </Link>
+          <Link to="/login" className="font-medium text-teal-600 hover:underline">Войти</Link>
         </p>
       </form>
     </div>

@@ -21,6 +21,10 @@ export default function Header() {
       { to: '/register', label: 'Регистрация' },
     )
   }
+  if (user) {
+    navItems.push({ to: '/profile', label: 'Профиль' })
+    navItems.push({ to: '/notifications', label: 'Уведомления' })
+  }
   if (user?.role === 'author') {
     navItems.push({ to: '/author', label: 'Мой кабинет' })
   }

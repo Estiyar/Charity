@@ -13,7 +13,8 @@ class PaymentStatus(models.TextChoices):
 class RefundChoice(models.TextChoices):
     EMPTY = "empty", "Не выбрано"
     KEEP = "keep", "Оставить семье"
-    REFUND = "refund", "Возврат"
+    HOLD = "hold", "Оставить на карточке до проверки"
+    REFUND = "refund", "Возврат (legacy)"
     REDIRECT = "redirect", "Перенаправить"
 
 

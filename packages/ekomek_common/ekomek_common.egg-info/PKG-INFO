@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: ekomek-common
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: Django<6.0,>=5.0
+Requires-Dist: djangorestframework>=3.15
+Requires-Dist: djangorestframework-simplejwt>=5.3
+Requires-Dist: httpx>=0.27
+Requires-Dist: prometheus-client>=0.21
+Requires-Dist: kombu>=5.4
+Requires-Dist: celery>=5.4
+Requires-Dist: redis>=5.0
+Requires-Dist: cryptography>=43.0

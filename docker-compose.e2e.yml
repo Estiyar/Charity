@@ -1,0 +1,196 @@
+services:
+  api-gateway:
+    ports:
+      - "18080:8080"
+    environment:
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:15173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:15173
+
+  frontend:
+    build:
+      context: ./charity-frontend
+      args:
+        VITE_API_URL: http://localhost:18080/api
+        VITE_MEDIA_URL: http://localhost:18080
+        VITE_ECP_ALLOW_DEV: "true"
+    ports:
+      - "15173:80"
+
+  identity-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  identity-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  profile-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  profile-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  cards-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  cards-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  verification-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  verification-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  documents-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  documents-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  payments-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  payments-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  moderation-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  moderation-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  expenses-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  expenses-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  notifications-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  notifications-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  admin-service:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080
+
+  admin-worker:
+    environment:
+      ECP_ADAPTER: dev
+      MEDICAL_SOURCE_ADAPTER: dev
+      PAYMENT_ADAPTER: dev
+      PAYOUT_ADAPTER: dev
+      PAYMENT_FRONTEND_URL: http://localhost:15173
+      PAYMENT_PUBLIC_API_URL: http://localhost:18080

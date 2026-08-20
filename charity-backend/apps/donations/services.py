@@ -8,7 +8,6 @@ from django.utils import timezone
 from apps.cards.models import FundraisingCard
 from apps.common.card_status import CardStatus, InvalidStatusTransition, transition
 from apps.users.models import PlatformSettings
-from apps.users.services import credit_user_balance
 
 from .models import PaymentStatus, RefundChoice, RefundDecision, RefundDecisionStatus
 
@@ -23,6 +22,12 @@ class RefundDecisionError(Exception):
 REFUND_TRIGGER_STATUSES = {CardStatus.DECEASED}
 
 OWN_FUNDRAISER_DONATION_MESSAGE = "Нельзя жертвовать в собственный сбор."
+DONOR_REFUND_DISABLED_MESSAGE = "Возврат донорам отключён."
+PUBLIC_REDISTRIBUTION_CHOICES = {
+    RefundChoice.KEEP,
+    RefundChoice.HOLD,
+    RefundChoice.REDIRECT,
+}
 
 
 def is_own_fundraiser(user, card):
@@ -178,32 +183,18 @@ def apply_refund_choice(decision, choice, target_card=None):
     if timezone.now() > decision.deadline:
         raise RefundDecisionError("Срок принятия решения истёк.")
 
-    if choice not in {
-        RefundChoice.KEEP,
-        RefundChoice.REFUND,
-        RefundChoice.REDIRECT,
-    }:
+    if choice == RefundChoice.REFUND:
+        raise RefundDecisionError(DONOR_REFUND_DISABLED_MESSAGE, field="choice")
+    if choice not in PUBLIC_REDISTRIBUTION_CHOICES:
         raise RefundDecisionError("Недопустимый вариант распределения.", field="choice")
 
     source_card = decision.card
     share_amount = decision.share_amount
-    settings = PlatformSettings.get_solo()
 
     if choice == RefundChoice.KEEP:
         pass
-    elif choice == RefundChoice.REFUND:
-        FundraisingCard.objects.filter(pk=source_card.pk).update(
-            collected_amount=F("collected_amount") - share_amount
-        )
-        payout, _commission = calculate_refund_payout(
-            share_amount,
-            settings.refund_commission_percent,
-        )
-        credit_user_balance(
-            decision.donor,
-            payout,
-            description=f"Возврат по сбору «{source_card.full_name}»",
-        )
+    elif choice == RefundChoice.HOLD:
+        pass
     elif choice == RefundChoice.REDIRECT:
         validate_redirect_target(source_card, target_card)
         FundraisingCard.objects.filter(pk=source_card.pk).update(
@@ -253,6 +244,8 @@ def maybe_archive_card_after_refunds(card):
     if card.status != CardStatus.REDISTRIBUTION:
         return card
     if not card_refund_decisions_are_final(card):
+        return card
+    if RefundDecision.objects.filter(card=card, choice=RefundChoice.HOLD).exists():
         return card
     transition(card, CardStatus.ARCHIVED)
     return card

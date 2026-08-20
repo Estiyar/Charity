@@ -3,6 +3,7 @@ import { clearToken } from '../../api/auth'
 
 const tabs = [
   { to: '/author', label: 'Мои сборы', end: true },
+  { to: '/author/beneficiaries', label: 'Получатели' },
   { to: '/author/donor', label: 'Мои пожертвования' },
 ]
 

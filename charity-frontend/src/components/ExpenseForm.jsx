@@ -1,12 +1,16 @@
 import { useState } from 'react'
 import { createExpense } from '../api/client'
 import FileUploadField from './FileUploadField'
+import { expenseCategoryLabel } from '../utils/format'
+
+const CATEGORIES = ['medicine', 'treatment', 'clinic', 'transport', 'living', 'other']
 
 const initialForm = {
   date: '',
   purpose: '',
   amount: '',
   comment: '',
+  category: 'medicine',
 }
 
 export default function ExpenseForm({ cardId, onSuccess }) {
@@ -30,6 +34,7 @@ export default function ExpenseForm({ cardId, onSuccess }) {
       payload.append('date', form.date)
       payload.append('purpose', form.purpose)
       payload.append('amount', form.amount)
+      payload.append('category', form.category)
       if (form.comment) payload.append('comment', form.comment)
       if (file) payload.append('file', file)
       await createExpense(cardId, payload)
@@ -43,6 +48,7 @@ export default function ExpenseForm({ cardId, onSuccess }) {
         data.amount?.[0]
           || data.purpose?.[0]
           || data.file?.[0]
+          || data.category?.[0]
           || data.detail
           || 'Не удалось добавить расход.',
       )
@@ -61,6 +67,15 @@ export default function ExpenseForm({ cardId, onSuccess }) {
         required
         className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
       />
+      <select
+        value={form.category}
+        onChange={(e) => updateField('category', e.target.value)}
+        className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
+      >
+        {CATEGORIES.map((item) => (
+          <option key={item} value={item}>{expenseCategoryLabel(item)}</option>
+        ))}
+      </select>
       <input
         type="text"
         placeholder="Назначение"

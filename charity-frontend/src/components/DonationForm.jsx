@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { donate } from '../api/client'
 import { formatMoney } from '../utils/format'
 
-const QUICK_AMOUNTS = [1000, 5000, 10000, 20000]
+const QUICK_AMOUNTS = ['1000', '5000', '10000', '20000']
 
 const PAYMENT_METHODS = [
   { value: 'card', label: 'Банковская карта' },
@@ -10,49 +10,66 @@ const PAYMENT_METHODS = [
   { value: 'wallet', label: 'Электронный кошелёк' },
 ]
 
-export default function DonationForm({ cardId, onSuccess }) {
-  const [amountChoice, setAmountChoice] = useState(5000)
+function newIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `web-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+export default function DonationForm({ cardId }) {
+  const [amountChoice, setAmountChoice] = useState('5000')
   const [customAmount, setCustomAmount] = useState('')
   const [donorName, setDonorName] = useState('')
-  const [contact, setContact] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [consent, setConsent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
   const [isOther, setIsOther] = useState(false)
 
-  const resolvedAmount = isOther ? Number(customAmount) : amountChoice
+  const resolvedAmount = isOther ? customAmount : amountChoice
 
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
-    setSuccessMessage('')
     if (!consent) {
       setError('Необходимо согласие на обработку персональных данных.')
       return
     }
-    if (!resolvedAmount || resolvedAmount <= 0) {
+    if (!/^\d+(\.\d{1,2})?$/.test(String(resolvedAmount)) || Number(resolvedAmount) <= 0) {
       setError('Укажите корректную сумму пожертвования.')
+      return
+    }
+    if (!email && !phone) {
+      setError('Укажите email или телефон.')
       return
     }
     setLoading(true)
     try {
       const result = await donate(cardId, {
-        amount: resolvedAmount.toFixed(2),
+        amount: String(resolvedAmount),
         donor_name: donorName,
-        contact,
+        email,
+        phone,
         payment_method: paymentMethod,
         personal_data_consent: true,
+        idempotency_key: newIdempotencyKey(),
       })
-      setSuccessMessage(result.message)
-      onSuccess?.(result)
+      const redirectUrl = result.redirect_url || result.donation?.redirect_url
+      if (!redirectUrl) {
+        setError('Платёжный провайдер не вернул страницу оплаты.')
+        return
+      }
+      window.location.assign(redirectUrl)
     } catch (err) {
       const message = err.data?.amount?.[0]
         || err.data?.personal_data_consent?.[0]
+        || err.data?.email?.[0]
+        || err.data?.phone?.[0]
+        || err.data?.contact?.[0]
         || err.data?.non_field_errors?.[0]
         || (typeof err.data?.detail === 'string' ? err.data.detail : null)
-        || 'Не удалось выполнить пожертвование.'
+        || 'Не удалось создать платёжную сессию.'
       setError(message)
     } finally {
       setLoading(false)
@@ -94,8 +111,8 @@ export default function DonationForm({ cardId, onSuccess }) {
         </div>
         {isOther && (
           <input
-            type="number"
-            min="1"
+            type="text"
+            inputMode="decimal"
             placeholder="Введите сумму"
             value={customAmount}
             onChange={(e) => setCustomAmount(e.target.value)}
@@ -112,11 +129,17 @@ export default function DonationForm({ cardId, onSuccess }) {
         className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
       />
       <input
-        type="text"
-        placeholder="Телефон или email"
-        value={contact}
-        onChange={(e) => setContact(e.target.value)}
-        required
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
+      />
+      <input
+        type="tel"
+        placeholder="Телефон"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
         className="w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
       />
       <select
@@ -138,15 +161,12 @@ export default function DonationForm({ cardId, onSuccess }) {
         <span>Согласен(на) на обработку персональных данных</span>
       </label>
       {error && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
-      {successMessage && (
-        <p className="rounded-2xl bg-mint-100 px-4 py-3 text-sm text-teal-700">{successMessage}</p>
-      )}
       <button
         type="submit"
         disabled={loading}
         className="w-full rounded-2xl bg-teal-500 px-6 py-4 text-base font-semibold text-white shadow-md transition hover:bg-teal-600 disabled:opacity-60"
       >
-        {loading ? 'Обработка...' : 'Пожертвовать'}
+        {loading ? 'Создание платежа...' : 'Перейти к оплате'}
       </button>
     </form>
   )

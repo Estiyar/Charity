@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { fetchCard, fetchDonations, fetchExpenses, mediaUrl } from '../api/client'
+import { fetchCard, fetchCardHistory, fetchDonations, fetchPublicCardDocuments, fetchPublicExpenseReport, mediaUrl } from '../api/client'
+import ReportProblemForm from '../components/ReportProblemForm'
 import ApprovedExpensesTable from '../components/ApprovedExpensesTable'
+import CardTimeline from '../components/CardTimeline'
 import DonationForm from '../components/DonationForm'
 import EscrowBlock from '../components/EscrowBlock'
 import ProgressBar from '../components/ProgressBar'
+import PublicDocumentList from '../components/PublicDocumentList'
+import TrustBadges from '../components/TrustBadges'
 import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '../utils/format'
 
 const OWN_FUNDRAISER_DONATION_MESSAGE = 'Нельзя жертвовать в собственный сбор.'
@@ -13,7 +17,9 @@ export default function CardDetail() {
   const { id } = useParams()
   const [card, setCard] = useState(null)
   const [donations, setDonations] = useState([])
-  const [expenses, setExpenses] = useState([])
+  const [expenseReport, setExpenseReport] = useState(null)
+  const [history, setHistory] = useState([])
+  const [documents, setDocuments] = useState([])
   const [error, setError] = useState('')
 
   function loadCard() {
@@ -25,7 +31,9 @@ export default function CardDetail() {
   useEffect(() => {
     loadCard()
     fetchDonations(id).then(setDonations).catch(() => setDonations([]))
-    fetchExpenses(id).then(setExpenses).catch(() => setExpenses([]))
+    fetchPublicExpenseReport(id).then(setExpenseReport).catch(() => setExpenseReport(null))
+    fetchCardHistory(id).then(setHistory).catch(() => setHistory([]))
+    fetchPublicCardDocuments(id).then(setDocuments).catch(() => setDocuments([]))
   }, [id])
 
   if (error) {
@@ -83,6 +91,11 @@ export default function CardDetail() {
                 <p><span className="font-medium text-slate-800">ИИН:</span> {card.iin_masked || '—'}</p>
               </div>
               <p className="text-slate-700">{card.description || 'Описание не указано.'}</p>
+              {card.status === 'suspended' ? (
+                <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                  Сбор временно приостановлен. История и документы остаются доступны, новые пожертвования не принимаются.
+                </div>
+              ) : null}
               <div>
                 <div className="mb-2 flex justify-between text-sm">
                   <span className="font-semibold text-slate-800">
@@ -94,6 +107,12 @@ export default function CardDetail() {
               </div>
             </div>
           </section>
+
+          <TrustBadges trustStatus={card.trust_status} />
+
+          <PublicDocumentList documents={documents} />
+
+          <CardTimeline events={history} />
 
           <EscrowBlock card={card} />
 
@@ -128,23 +147,26 @@ export default function CardDetail() {
             )}
           </section>
 
-          <ApprovedExpensesTable expenses={expenses} />
+          <ApprovedExpensesTable report={expenseReport} />
+
+          <ReportProblemForm cardId={card.id} />
         </div>
 
         <div id="donate">
           {canDonate ? (
-            <DonationForm
-              cardId={card.id}
-              onSuccess={() => {
-                loadCard()
-                fetchDonations(id).then(setDonations).catch(() => {})
-              }}
-            />
+            <DonationForm cardId={card.id} />
           ) : card.status === 'completed' ? (
             <div className="rounded-3xl bg-white p-6 shadow-md">
               <h3 className="text-xl font-semibold text-slate-800">Сделать пожертвование</h3>
               <p className="mt-3 text-sm text-slate-600">
                 Сбор завершён. Цель достигнута, новые пожертвования не принимаются.
+              </p>
+            </div>
+          ) : card.status === 'suspended' ? (
+            <div className="rounded-3xl bg-white p-6 shadow-md">
+              <h3 className="text-xl font-semibold text-slate-800">Сделать пожертвование</h3>
+              <p className="mt-3 text-sm text-slate-600">
+                Сбор приостановлен модерацией. Новые пожертвования временно недоступны.
               </p>
             </div>
           ) : card.status === 'active' && card.can_donate === false ? (

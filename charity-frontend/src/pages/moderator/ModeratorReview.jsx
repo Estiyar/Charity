@@ -3,25 +3,37 @@ import { Link, useParams } from 'react-router-dom'
 import {
   approveCard,
   fetchModerationCard,
+  fetchCardHistory,
+  fetchCardTrustStatus,
   rejectCard,
   rejectDocument,
   requestCardRevision,
+  requestDocumentRevision,
   verifyDocument,
   mediaUrl,
 } from '../../api/client'
 import EscrowBlock from '../../components/EscrowBlock'
+import CardTimeline from '../../components/CardTimeline'
+import ModeratorCommentFields, { CommentHistory } from '../../components/ModeratorCommentFields'
+import { DocumentOriginalPreview, documentTypeLabel } from '../../components/PublicDocumentList'
+import TrustBadges from '../../components/TrustBadges'
 import { formatDate, formatMoney, statusLabel } from '../../utils/format'
 
 export default function ModeratorReview() {
   const { id } = useParams()
   const [card, setCard] = useState(null)
-  const [comment, setComment] = useState('')
+  const [history, setHistory] = useState([])
+  const [trustStatus, setTrustStatus] = useState(null)
+  const [revisionComment, setRevisionComment] = useState('')
+  const [internalComment, setInternalComment] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   function loadCard() {
     fetchModerationCard(id).then(setCard).catch(() => setCard(null))
+    fetchCardHistory(id).then(setHistory).catch(() => setHistory([]))
+    fetchCardTrustStatus(id).then(setTrustStatus).catch(() => setTrustStatus(null))
   }
 
   useEffect(() => {
@@ -36,12 +48,13 @@ export default function ModeratorReview() {
     setLoading(true)
     try {
       let result
-      if (action === 'approve') result = await approveCard(id, comment)
-      if (action === 'reject') result = await rejectCard(id, comment)
-      if (action === 'revision') result = await requestCardRevision(id, comment)
+      if (action === 'approve') result = await approveCard(id, revisionComment)
+      if (action === 'reject') result = await rejectCard(id, revisionComment)
+      if (action === 'revision') result = await requestCardRevision(id, revisionComment, internalComment)
       setCard(result)
       setMessage('Действие выполнено успешно')
-      setComment('')
+      setRevisionComment('')
+      setInternalComment('')
     } catch (err) {
       setError(err.data?.detail || err.data?.comment?.[0] || 'Ошибка выполнения действия')
     } finally {
@@ -50,20 +63,28 @@ export default function ModeratorReview() {
   }
 
   async function handleDocumentAction(documentId, action) {
-    const docComment = prompt(action === 'verify' ? 'Комментарий (необязательно)' : 'Комментарий (обязательно)')
-    if (action === 'reject' && !docComment?.trim()) return
     try {
       if (action === 'verify') {
         await verifyDocument(documentId, {
-          comment: docComment || '',
+          comment: revisionComment || '',
           has_confidential: true,
         })
+      } else if (action === 'revision') {
+        if (!revisionComment.trim()) {
+          setError('Укажите, что нужно исправить в документе')
+          return
+        }
+        await requestDocumentRevision(documentId, revisionComment, internalComment)
       } else {
-        await rejectDocument(documentId, docComment)
+        if (!revisionComment.trim()) {
+          setError('Комментарий обязателен при отклонении документа')
+          return
+        }
+        await rejectDocument(documentId, revisionComment)
       }
       loadCard()
     } catch (err) {
-      setError(err.data?.detail || 'Ошибка проверки документа')
+      setError(err.data?.detail || err.data?.revision_comment || 'Ошибка проверки документа')
     }
   }
 
@@ -88,6 +109,11 @@ export default function ModeratorReview() {
                 Усиленная проверка
               </span>
             )}
+            {card.duplicate_suspected && (
+              <span className="rounded-full bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-800">
+                Возможный дубль
+              </span>
+            )}
             <span className="rounded-full bg-mint-100 px-4 py-2 text-sm font-medium text-teal-600">
               {statusLabel(card.status)}
             </span>
@@ -97,6 +123,21 @@ export default function ModeratorReview() {
           <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Антифрод-система отметила этот сбор для усиленной проверки. Проверьте документы и данные особенно внимательно.
           </p>
+        )}
+        {card.duplicate_suspected && (
+          <div className="mb-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900">
+            <p className="font-semibold">Сигналы дублей</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {(card.duplicate_signals || []).map((item) => (
+                <li key={item.code || item.message}>
+                  {item.message || item.code}
+                  {(item.matched_card_ids || []).length
+                    ? ` · карточки ${(item.matched_card_ids || []).join(', ')}`
+                    : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
@@ -124,51 +165,62 @@ export default function ModeratorReview() {
         <p className="mt-4 text-slate-700">{card.description}</p>
       </section>
 
+      <TrustBadges trustStatus={trustStatus || card.trust_status} />
+      <CardTimeline events={history} staff />
+
       <section className="rounded-3xl bg-white p-6 shadow-md">
         <h2 className="mb-4 text-xl font-semibold text-slate-800">Документы</h2>
         <div className="space-y-4">
-          {(card.documents || []).map((doc) => {
-            const fileUrl = mediaUrl(doc.file_url)
-            return (
-              <div key={doc.id} className="rounded-2xl border border-sky-100 p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-slate-800">{doc.file_name}</p>
-                    <p className="text-sm text-slate-500">{doc.file_type} · {statusLabel(doc.status)}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDocumentAction(doc.id, 'verify')}
-                      className="rounded-xl bg-teal-500 px-3 py-2 text-sm text-white"
-                    >
-                      Проверен
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDocumentAction(doc.id, 'reject')}
-                      className="rounded-xl bg-red-500 px-3 py-2 text-sm text-white"
-                    >
-                      Отклонить
-                    </button>
-                  </div>
+          {(card.documents || []).map((doc) => (
+            <div key={doc.id} className="rounded-2xl border border-sky-100 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium text-slate-800">
+                    {documentTypeLabel(doc.document_type)} · {doc.file_name}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {doc.file_type} · {statusLabel(doc.verification_status || doc.status)} · версия {doc.version_number || 1}
+                  </p>
                 </div>
-                {doc.file_type === 'pdf' && fileUrl && (
-                  <iframe title={doc.file_name} src={fileUrl} className="h-64 w-full rounded-xl border" />
-                )}
-                {doc.file_type !== 'pdf' && fileUrl && (
-                  <a href={fileUrl} target="_blank" rel="noreferrer" className="text-sm text-teal-600 hover:underline">
-                    Открыть файл
-                  </a>
-                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDocumentAction(doc.id, 'verify')}
+                    className="rounded-xl bg-teal-500 px-3 py-2 text-sm text-white"
+                  >
+                    Проверен
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDocumentAction(doc.id, 'revision')}
+                    className="rounded-xl bg-amber-500 px-3 py-2 text-sm text-white"
+                  >
+                    На доработку
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDocumentAction(doc.id, 'reject')}
+                    className="rounded-xl bg-red-500 px-3 py-2 text-sm text-white"
+                  >
+                    Отклонить
+                  </button>
+                </div>
               </div>
-            )
-          })}
+              <DocumentOriginalPreview documentId={doc.id} fileType={doc.file_type} fileName={doc.file_name} />
+            </div>
+          ))}
         </div>
       </section>
 
       {showEscrow && card.escrow_balance !== undefined && (
         <EscrowBlock card={card} />
+      )}
+
+      {card.comments?.length > 0 && (
+        <section className="rounded-3xl bg-white p-6 shadow-md">
+          <h2 className="mb-4 text-xl font-semibold text-slate-800">Комментарии модерации</h2>
+          <CommentHistory comments={card.comments} />
+        </section>
       )}
 
       {card.moderation_logs?.length > 0 && (
@@ -186,17 +238,16 @@ export default function ModeratorReview() {
         </section>
       )}
 
-      {card.status === 'pending_moderation' && (
+      {(card.status === 'pending_moderation' || card.status === 'manual_review') && (
         <section className="rounded-3xl bg-white p-6 shadow-md">
           <h2 className="mb-4 text-xl font-semibold text-slate-800">Решение модератора</h2>
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Комментарий (обязателен при отклонении и доработке)"
-            className="mb-4 w-full rounded-2xl border border-sky-100 px-4 py-3 text-sm outline-none focus:border-teal-500"
-            rows={4}
+          <ModeratorCommentFields
+            revisionComment={revisionComment}
+            onRevisionChange={setRevisionComment}
+            internalComment={internalComment}
+            onInternalChange={setInternalComment}
           />
-          {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mb-3 mt-3 text-sm text-red-600">{error}</p>}
           {message && <p className="mb-3 text-sm text-teal-700">{message}</p>}
           <div className="flex flex-wrap gap-3">
             <button

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchAdminDonations } from '../../api/client'
-import { formatDate, formatMoney } from '../../utils/format'
+import { formatDate, formatMoney, paymentStatusLabel } from '../../utils/format'
 
 export default function AdminDonations() {
   const [donations, setDonations] = useState([])
@@ -26,6 +26,7 @@ export default function AdminDonations() {
               <th className="py-2 pr-4">Сбор</th>
               <th className="py-2 pr-4">Донор</th>
               <th className="py-2 pr-4">Сумма</th>
+              <th className="py-2 pr-4">Статус</th>
               <th className="py-2">Дата</th>
             </tr>
           </thead>
@@ -35,6 +36,7 @@ export default function AdminDonations() {
                 <td className="py-3 pr-4">{donation.card_name}</td>
                 <td className="py-3 pr-4">{donation.donor_name}</td>
                 <td className="py-3 pr-4">{formatMoney(donation.amount)}</td>
+                <td className="py-3 pr-4">{paymentStatusLabel(donation.payment_status)}</td>
                 <td className="py-3">{formatDate(donation.created_at)}</td>
               </tr>
             ))}

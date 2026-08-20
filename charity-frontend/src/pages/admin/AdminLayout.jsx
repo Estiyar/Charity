@@ -8,7 +8,9 @@ const sections = [
   { to: '/admin/donations', label: 'Пожертвования' },
   { to: '/admin/expenses', label: 'Расходы' },
   { to: '/admin/references', label: 'Справочники' },
+  { to: '/admin/risk-config', label: 'Конфигурация рисков' },
   { to: '/admin/settings', label: 'Настройки' },
+  { to: '/profile', label: 'Профиль' },
 ]
 
 const linkClass = ({ isActive }) =>

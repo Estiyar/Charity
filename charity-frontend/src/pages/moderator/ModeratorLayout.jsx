@@ -2,12 +2,17 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { clearToken } from '../../api/auth'
 
 const sections = [
-  { to: '/moderator', label: 'Новые заявки', status: 'pending_moderation', end: true },
-  { to: '/moderator/revision', label: 'На доработке', status: 'revision_required' },
-  { to: '/moderator/approved', label: 'Одобренные', status: 'approved' },
-  { to: '/moderator/rejected', label: 'Отклонённые', status: 'rejected' },
+  { to: '/moderator', label: 'Новые заявки', end: true },
+  { to: '/moderator/reviews', label: 'Высокий риск' },
+  { to: '/moderator/representations', label: 'Представительство' },
+  { to: '/moderator/reports', label: 'Жалобы' },
+  { to: '/moderator/revision', label: 'На доработке' },
+  { to: '/moderator/approved', label: 'Одобренные' },
+  { to: '/moderator/rejected', label: 'Отклонённые' },
   { to: '/moderator/documents', label: 'Документы на проверке' },
   { to: '/moderator/expenses', label: 'Расходы на проверке' },
+  { to: '/moderator/invoices', label: 'Счета клиникам' },
+  { to: '/profile', label: 'Профиль' },
 ]
 
 export { sections }
@@ -35,14 +40,12 @@ export default function ModeratorLayout() {
             clearToken()
             window.location.href = '/login'
           }}
-          className="mt-6 w-full rounded-2xl border border-sky-200 px-4 py-3 text-sm text-slate-600 hover:bg-sky-50"
+          className="mt-6 w-full rounded-2xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600"
         >
           Выйти
         </button>
       </aside>
-      <div>
-        <Outlet />
-      </div>
+      <Outlet />
     </div>
   )
 }

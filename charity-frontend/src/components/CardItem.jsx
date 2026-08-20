@@ -1,9 +1,10 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { mediaUrl } from '../api/client'
 import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '../utils/format'
 import ProgressBar from './ProgressBar'
 
-export default function CardItem({ card }) {
+function CardItem({ card }) {
   const photo = mediaUrl(card.photo_url)
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-md transition hover:-translate-y-1 hover:shadow-lg">
@@ -51,3 +52,5 @@ export default function CardItem({ card }) {
     </article>
   )
 }
+
+export default memo(CardItem)

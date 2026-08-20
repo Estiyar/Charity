@@ -132,30 +132,32 @@ class RefundDecisionAPITestCase(APITestCase):
     def test_list_my_pending_refunds(self):
         self._mark_deceased()
         self.client.force_authenticate(user=self.donor)
-        response = self.client.get("/api/refunds/my/")
+        response = self.client.get("/api/redistribution/my/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["share_amount"], "60000.00")
         self.assertEqual(response.data[0]["donation_id"], self.donation.id)
         self.assertEqual(len(response.data[0]["options"]), 3)
-        self.assertTrue(len(response.data[0]["redirect_options"]) >= 1)
+        option_values = [item["value"] for item in response.data[0]["options"]]
+        self.assertEqual(option_values, ["keep", "hold", "redirect"])
+        self.assertNotIn("refund", option_values)
 
     def test_list_my_refund_history_after_choice(self):
         self._mark_deceased()
         decision = RefundDecision.objects.get(donor=self.donor)
         self.client.force_authenticate(user=self.donor)
         choose_response = self.client.post(
-            f"/api/refunds/{decision.id}/choose/",
+            f"/api/redistribution/{decision.id}/choose/",
             {"choice": RefundChoice.KEEP},
             format="json",
         )
         self.assertEqual(choose_response.status_code, status.HTTP_200_OK)
 
-        pending_response = self.client.get("/api/refunds/my/")
+        pending_response = self.client.get("/api/redistribution/my/")
         self.assertEqual(len(pending_response.data), 0)
 
-        history_response = self.client.get("/api/refunds/history/")
+        history_response = self.client.get("/api/redistribution/history/")
         self.assertEqual(history_response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(history_response.data), 1)
         self.assertEqual(history_response.data[0]["choice"], RefundChoice.KEEP)
@@ -165,7 +167,7 @@ class RefundDecisionAPITestCase(APITestCase):
     def test_refund_history_excludes_other_donors(self):
         self._mark_deceased()
         self.client.force_authenticate(user=self.other_donor)
-        response = self.client.get("/api/refunds/history/")
+        response = self.client.get("/api/redistribution/history/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
@@ -174,7 +176,7 @@ class RefundDecisionAPITestCase(APITestCase):
         decision = RefundDecision.objects.get(donor=self.donor)
         self.client.force_authenticate(user=self.donor)
         response = self.client.post(
-            f"/api/refunds/{decision.id}/choose/",
+            f"/api/redistribution/{decision.id}/choose/",
             {"choice": RefundChoice.KEEP},
             format="json",
         )
@@ -186,40 +188,53 @@ class RefundDecisionAPITestCase(APITestCase):
         self.card.refresh_from_db()
         self.assertEqual(self.card.collected_amount, Decimal("110000.00"))
 
-    def test_choose_refund_reduces_collected_amount(self):
+    def test_public_refund_api_is_closed(self):
+        self.client.force_authenticate(user=self.donor)
+        response = self.client.get("/api/refunds/my/")
+        self.assertEqual(response.status_code, status.HTTP_410_GONE)
+        choose = self.client.post("/api/refunds/1/choose/", {"choice": "refund"}, format="json")
+        self.assertEqual(choose.status_code, status.HTTP_410_GONE)
+
+    def test_choose_refund_is_rejected(self):
         self._mark_deceased()
         decision = RefundDecision.objects.get(donor=self.donor)
         self.client.force_authenticate(user=self.donor)
         response = self.client.post(
-            f"/api/refunds/{decision.id}/choose/",
+            f"/api/redistribution/{decision.id}/choose/",
             {"choice": RefundChoice.REFUND},
             format="json",
         )
 
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        decision.refresh_from_db()
+        self.assertEqual(decision.status, RefundDecisionStatus.PENDING)
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.collected_amount, Decimal("110000.00"))
+        self.donor.refresh_from_db()
+        self.assertEqual(self.donor.balance, Decimal("0.00"))
+
+    def test_choose_hold_leaves_funds_on_card(self):
+        self._mark_deceased()
+        decision = RefundDecision.objects.get(donor=self.donor)
+        self.client.force_authenticate(user=self.donor)
+        response = self.client.post(
+            f"/api/redistribution/{decision.id}/choose/",
+            {"choice": RefundChoice.HOLD},
+            format="json",
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         decision.refresh_from_db()
-        self.assertEqual(decision.choice, RefundChoice.REFUND)
+        self.assertEqual(decision.choice, RefundChoice.HOLD)
         self.card.refresh_from_db()
-        self.assertEqual(self.card.collected_amount, Decimal("50000.00"))
-        self.assertEqual(response.data["refund_payout"]["commission_percent"], 10)
-        self.assertEqual(response.data["refund_payout"]["net_amount"], "54000.00")
-        self.donor.refresh_from_db()
-        self.assertEqual(self.donor.balance, Decimal("54000.00"))
-        self.client.force_authenticate(user=self.donor)
-        balance_response = self.client.get("/api/auth/balance/")
-        self.assertEqual(balance_response.data["balance"], "54000.00")
-        self.assertEqual(len(balance_response.data["transactions"]), 1)
-        self.assertEqual(
-            balance_response.data["transactions"][0]["transaction_type"],
-            "refund_in",
-        )
+        self.assertEqual(self.card.collected_amount, Decimal("110000.00"))
+        self.assertEqual(self.card.status, CardStatus.REDISTRIBUTION)
 
     def test_choose_redirect_moves_amount_to_target_card(self):
         self._mark_deceased()
         decision = RefundDecision.objects.get(donor=self.donor)
         self.client.force_authenticate(user=self.donor)
         response = self.client.post(
-            f"/api/refunds/{decision.id}/choose/",
+            f"/api/redistribution/{decision.id}/choose/",
             {"choice": RefundChoice.REDIRECT, "target_card_id": self.target_card.id},
             format="json",
         )
@@ -253,7 +268,7 @@ class RefundDecisionAPITestCase(APITestCase):
         )
         self._mark_deceased()
         self.client.force_authenticate(user=self.donor)
-        response = self.client.get("/api/refunds/my/")
+        response = self.client.get("/api/redistribution/my/")
 
         option_ids = [item["id"] for item in response.data[0]["redirect_options"]]
         self.assertIn(self.target_card.id, option_ids)
@@ -267,12 +282,12 @@ class RefundDecisionAPITestCase(APITestCase):
         decision = RefundDecision.objects.get(donor=self.donor)
         self.client.force_authenticate(user=self.donor)
 
-        list_response = self.client.get("/api/refunds/my/")
+        list_response = self.client.get("/api/redistribution/my/")
         option_ids = [item["id"] for item in list_response.data[0]["redirect_options"]]
         self.assertIn(self.target_card.id, option_ids)
 
         response = self.client.post(
-            f"/api/refunds/{decision.id}/choose/",
+            f"/api/redistribution/{decision.id}/choose/",
             {"choice": RefundChoice.REDIRECT, "target_card_id": self.target_card.id},
             format="json",
         )
@@ -329,7 +344,7 @@ class RefundDecisionAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.donor)
         donor_decision = decisions.get(donor=self.donor)
         self.client.post(
-            f"/api/refunds/{donor_decision.id}/choose/",
+            f"/api/redistribution/{donor_decision.id}/choose/",
             {"choice": RefundChoice.KEEP},
             format="json",
         )
@@ -339,7 +354,7 @@ class RefundDecisionAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.other_donor)
         other_decision = decisions.get(donor=self.other_donor)
         response = self.client.post(
-            f"/api/refunds/{other_decision.id}/choose/",
+            f"/api/redistribution/{other_decision.id}/choose/",
             {"choice": RefundChoice.KEEP},
             format="json",
         )

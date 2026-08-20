@@ -4,17 +4,18 @@ import {
   fetchMe,
   fetchMyBalance,
   fetchMyDonations,
-  fetchMyPendingRefunds,
-  fetchMyRefundHistory,
+  fetchMyPendingRedistributions,
+  fetchMyRedistributionHistory,
   withdrawBalance,
 } from '../api/client'
-import RefundDecisionForm from './RefundDecisionForm'
+import RedistributionForm from './RedistributionForm'
 import {
   formatBalanceTransactionAmount,
   formatDate,
   formatDateTime,
   formatMoney,
   formatRefundOutcome,
+  paymentStatusLabel,
   roleLabel,
 } from '../utils/format'
 
@@ -40,8 +41,8 @@ export default function DonorCabinetPanel({ showProfile = true }) {
     const requests = [
       fetchMyBalance(),
       fetchMyDonations(),
-      fetchMyPendingRefunds(),
-      fetchMyRefundHistory(),
+      fetchMyPendingRedistributions(),
+      fetchMyRedistributionHistory(),
     ]
     if (showProfile) {
       requests.unshift(fetchMe())
@@ -109,7 +110,7 @@ export default function DonorCabinetPanel({ showProfile = true }) {
             <p className="text-sm text-teal-50">Баланс (демо-счёт)</p>
             <p className="mt-1 text-4xl font-bold">{formatMoney(balanceData.balance)}</p>
             <p className="mt-2 text-sm text-teal-50">
-              Возвраты по завершённым сборам зачисляются сюда. Реальные платежи не выполняются.
+              Исторические операции по балансу сохраняются. Новые возвраты донорам не начисляются.
             </p>
           </div>
           <button
@@ -161,7 +162,12 @@ export default function DonorCabinetPanel({ showProfile = true }) {
 
       {showProfile && user && (
         <section className="rounded-3xl bg-white p-8 shadow-md">
-          <h2 className="text-lg font-semibold text-slate-800">Профиль</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-800">Профиль</h2>
+            <Link to="/profile" className="text-sm font-medium text-teal-600">
+              Открыть и редактировать
+            </Link>
+          </div>
           <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-slate-500">Имя</dt>
@@ -185,18 +191,19 @@ export default function DonorCabinetPanel({ showProfile = true }) {
 
       <section className="rounded-3xl bg-white p-8 shadow-md">
         <h2 className="text-lg font-semibold text-slate-800">
-          Завершённые сборы — выберите, что сделать
+          Перераспределение остатка
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          Если у сбора остались неиспользованные средства, вы можете оставить их семье,
-          вернуть на баланс или перенаправить на другой активный сбор.
+          Если у сбора остались неиспользованные средства, вы можете перенаправить их
+          на другой активный сбор, оставить семье или оставить на текущей карточке
+          до завершения проверки.
         </p>
         {!pendingRefunds.length ? (
           <p className="mt-6 text-sm text-slate-500">Сейчас нет сборов, требующих вашего решения.</p>
         ) : (
           <div className="mt-6 space-y-4">
             {pendingRefunds.map((decision) => (
-              <RefundDecisionForm
+              <RedistributionForm
                 key={decision.id}
                 decision={decision}
                 onResolved={loadDashboard}
@@ -217,6 +224,7 @@ export default function DonorCabinetPanel({ showProfile = true }) {
                 <tr className="border-b border-sky-100 text-slate-500">
                   <th className="py-2 pr-4">Сбор</th>
                   <th className="py-2 pr-4">Сумма</th>
+                  <th className="py-2 pr-4">Статус</th>
                   <th className="py-2 pr-4">Способ оплаты</th>
                   <th className="py-2 pr-4">Решение по остатку</th>
                   <th className="py-2">Дата</th>
@@ -236,6 +244,7 @@ export default function DonorCabinetPanel({ showProfile = true }) {
                         </Link>
                       </td>
                       <td className="py-3 pr-4">{formatMoney(donation.amount)}</td>
+                      <td className="py-3 pr-4">{paymentStatusLabel(donation.payment_status)}</td>
                       <td className="py-3 pr-4">{donation.payment_method || '—'}</td>
                       <td className="py-3 pr-4 text-slate-700">
                         {refundDecision ? formatRefundOutcome(refundDecision) : '—'}

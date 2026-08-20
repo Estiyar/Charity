@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchModerationCards, fetchModerationDocuments, fetchModerationExpenses } from '../../api/client'
-import { expenseStatusLabel, formatDate, formatMoney, statusLabel } from '../../utils/format'
+import { fetchModerationCards, fetchModerationDocuments, fetchModerationExpenses, fetchModerationInvoices } from '../../api/client'
+import { expenseStatusLabel, formatDate, formatMoney, invoiceStatusLabel, statusLabel } from '../../utils/format'
 
-export default function ModeratorList({ status, title, documentsMode = false, expensesMode = false }) {
+export default function ModeratorList({ status, title, documentsMode = false, expensesMode = false, invoicesMode = false }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -13,12 +13,14 @@ export default function ModeratorList({ status, title, documentsMode = false, ex
       ? fetchModerationDocuments()
       : expensesMode
         ? fetchModerationExpenses()
-        : fetchModerationCards(status)
+        : invoicesMode
+          ? fetchModerationInvoices()
+          : fetchModerationCards(status)
     loader
       .then(setItems)
       .catch(() => setItems([]))
       .finally(() => setLoading(false))
-  }, [status, documentsMode, expensesMode])
+  }, [status, documentsMode, expensesMode, invoicesMode])
 
   if (loading) {
     return <div className="rounded-3xl bg-white p-8 text-slate-500 shadow-md">Загрузка...</div>
@@ -39,6 +41,26 @@ export default function ModeratorList({ status, title, documentsMode = false, ex
               </div>
               <Link
                 to={`/moderator/cards/${doc.card_id}`}
+                className="rounded-2xl bg-teal-500 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Проверить
+              </Link>
+            </div>
+          ))}
+        </div>
+      ) : invoicesMode ? (
+        <div className="space-y-3">
+          {items.map((invoice) => (
+            <div key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sky-50 p-4">
+              <div>
+                <p className="font-medium text-slate-800">{invoice.organization?.name || invoice.purpose}</p>
+                <p className="text-sm text-slate-500">
+                  {invoice.card_name} · {formatMoney(invoice.amount)} · {invoiceStatusLabel(invoice.status)}
+                </p>
+                <p className="text-xs text-slate-400">{formatDate(invoice.date)}</p>
+              </div>
+              <Link
+                to={`/moderator/invoices/${invoice.id}`}
                 className="rounded-2xl bg-teal-500 px-4 py-2 text-sm font-semibold text-white"
               >
                 Проверить

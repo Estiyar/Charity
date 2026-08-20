@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchCards, fetchStats } from '../api/client'
+import { fetchCatalog, fetchStats } from '../api/client'
 import CardGrid from '../components/CardGrid'
 import StatsBlock from '../components/StatsBlock'
 import { getCreateCollectionPath, useCurrentUser } from '../hooks/useCurrentUser'
@@ -13,7 +13,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchStats().then(setStats).catch(() => setStats({}))
-    fetchCards({ status: 'active' })
+    fetchCatalog({ status: 'active', page_size: 6 })
       .then((data) => setCards(data.results || []))
       .catch(() => setCards([]))
   }, [])

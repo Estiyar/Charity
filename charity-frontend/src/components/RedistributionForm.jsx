@@ -1,24 +1,29 @@
 import { useState } from 'react'
-import { chooseRefundDecision } from '../api/client'
+import { chooseRedistribution } from '../api/client'
 import { formatDateTime, formatMoney } from '../utils/format'
 
 function formatRedirectOptionLabel(card) {
   return `${card.full_name} — ${card.diagnosis}, ${card.city} (${formatMoney(card.collected_amount)} / ${formatMoney(card.target_amount)})`
 }
 
-export default function RefundDecisionForm({ decision, onResolved }) {
+export default function RedistributionForm({ decision, onResolved }) {
   const [choice, setChoice] = useState('')
   const [targetCardId, setTargetCardId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const redirectOptions = decision.redirect_options || []
+  const options = (decision.options || []).filter((option) => option.value !== 'refund')
   const canSubmitRedirect = choice !== 'redirect' || targetCardId
 
   async function handleSubmit(event) {
     event.preventDefault()
     if (!choice) {
       setError('Выберите один из вариантов.')
+      return
+    }
+    if (choice === 'refund') {
+      setError('Возврат донорам отключён.')
       return
     }
     if (choice === 'redirect' && !targetCardId) {
@@ -32,7 +37,7 @@ export default function RefundDecisionForm({ decision, onResolved }) {
       if (choice === 'redirect') {
         payload.target_card_id = Number(targetCardId)
       }
-      await chooseRefundDecision(decision.id, payload)
+      await chooseRedistribution(decision.id, payload)
       onResolved?.()
     } catch (err) {
       setError(
@@ -66,7 +71,7 @@ export default function RefundDecisionForm({ decision, onResolved }) {
       </p>
 
       <fieldset className="space-y-3">
-        {(decision.options || []).map((option) => (
+        {options.map((option) => (
           <label
             key={option.value}
             className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ${
@@ -77,7 +82,7 @@ export default function RefundDecisionForm({ decision, onResolved }) {
           >
             <input
               type="radio"
-              name={`refund-choice-${decision.id}`}
+              name={`redistribution-choice-${decision.id}`}
               value={option.value}
               checked={choice === option.value}
               onChange={() => {
@@ -89,16 +94,7 @@ export default function RefundDecisionForm({ decision, onResolved }) {
               }}
               className="mt-1"
             />
-            <span>
-              <span className="block font-medium text-slate-800">{option.label}</span>
-              {option.value === 'refund' && decision.refund_payout && (
-                <span className="mt-1 block text-sm text-slate-500">
-                  К выплате {formatMoney(decision.refund_payout.net_amount)}
-                  {' '}
-                  (комиссия {decision.refund_payout.commission_percent}%)
-                </span>
-              )}
-            </span>
+            <span className="block font-medium text-slate-800">{option.label}</span>
           </label>
         ))}
       </fieldset>
